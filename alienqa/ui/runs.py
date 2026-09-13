@@ -137,6 +137,8 @@ class RunManager:
         rec = self.get(run_id)
         if rec is None:
             return
+        if rec.status != "running":  # 已被 watchdog 标记 timeout 等，不再回写
+            return
         rec.status = status
         rec.evidence_count = evidence_count
         rec.issue_count = issue_count

@@ -46,6 +46,16 @@ def test_run_record_instructions(tmp_path):
     assert rm.get(rec.id).instructions == "错误密码应有提示"
 
 
+def test_finish_does_not_overwrite_timeout(tmp_path):
+    rm = RunManager(tmp_path / "runs")
+    rec = rm.create("d:/p")
+    rm.finish(rec.id, "timeout", error="扫描超时")
+    rm.finish(rec.id, "done", evidence_count=5)  # 不应覆盖 timeout
+    got = rm.get(rec.id)
+    assert got.status == "timeout"
+    assert got.error == "扫描超时"
+
+
 def test_save_and_load_scope(tmp_path):
     from types import SimpleNamespace
 

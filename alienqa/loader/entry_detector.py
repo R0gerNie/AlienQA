@@ -52,7 +52,8 @@ def collect_entry_candidates(root: str | Path) -> list:
     return [p for p, _ in found]
 
 
-def _is_all(unit: str) -> bool:
+def is_all_unit(unit: str) -> bool:
+    """测试单元是否为空或语义等价于「全部」。"""
     return (unit or "").strip().lower() in _ALL_TOKENS
 
 
@@ -66,7 +67,7 @@ class EntryDetector:
         candidates = collect_entry_candidates(root)
         if not candidates:
             return "index.html"  # 无候选兜底（交给浏览器 404，不中断扫描）
-        if _is_all(unit):
+        if is_all_unit(unit):
             return candidates[0]
         if self.roles is not None:
             picked = self._llm_pick(unit, instructions, candidates)

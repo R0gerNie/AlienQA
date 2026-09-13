@@ -17,7 +17,7 @@ from .evidence import EvidenceEngine
 from .expectation import ExpectationEngine, PageInfo
 from .investigation import InvestigationAgent
 from .llm import LLMClient, LLMConfig
-from .loader import Project, UnitLocator, UnitScope
+from .loader import Project, UnitLocator, UnitScope, is_all_unit
 from .mapper import ProductMapper
 from .observation import ObservationEngine
 from .planner import ActionPlanner, ExploreBudget
@@ -135,9 +135,9 @@ class AlienQAPipeline:
         state = tracker.capture(driver)
         evidences: list = []
 
-        # 01+ 单元定位器：有聚焦指令时圈定探索范围
+        # 01+ 单元定位器：单元有具体语义时圈定探索范围（空/「全部」跳过，避免对空或巨型 DOM 误跑）
         scope = None
-        if self.unit or self.instructions:
+        if not is_all_unit(self.unit):
             locator = UnitLocator(self.client)
             scope = locator.locate(self.unit, self.instructions, pm.brief, driver.interactive_elements())
             self._log(f"[01+] 单元定位: {scope.summary or '未定位到具体元素（退化为全量探索）'}")

@@ -6,6 +6,7 @@ from .base import BaseDriver
 from .runtime import RuntimeSignals
 
 _DEFAULT_VIEWPORT = {"width": 1280, "height": 800}
+_MAX_INTERACTIVE = 200  # 交互元素枚举上限，防止巨型 DOM（如 swagger）枚举到卡死
 
 
 class PlaywrightDriver(BaseDriver):
@@ -153,11 +154,11 @@ class PlaywrightDriver(BaseDriver):
         return self._page.content()
 
     def interactive_elements(self) -> list:
-        """枚举当前页面可交互元素（候选动作来源）。"""
+        """枚举当前页面可交互元素（候选动作来源，上限 _MAX_INTERACTIVE）。"""
         sel = "button, a[href], input, select, textarea, [role='button'], [role='link']"
         items = []
         locator = self._page.locator(sel)
-        for i in range(locator.count()):
+        for i in range(min(locator.count(), _MAX_INTERACTIVE)):
             loc = locator.nth(i)
             try:
                 visible = loc.is_visible()

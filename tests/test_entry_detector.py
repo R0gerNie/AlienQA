@@ -2,7 +2,7 @@
 from types import SimpleNamespace
 
 from alienqa.llm import LLMClient, LLMConfig, RoleConfig
-from alienqa.loader import EntryDetector, collect_entry_candidates
+from alienqa.loader import EntryDetector, collect_entry_candidates, is_all_unit
 
 
 class _FakeLiteLLM:
@@ -81,3 +81,11 @@ def test_detect_unit_llm_pick(monkeypatch, tmp_path):
 def test_detect_fallback_when_no_html(tmp_path):
     (tmp_path / "README.md").write_text("x", encoding="utf-8")
     assert EntryDetector().detect(tmp_path, unit="全部") == "index.html"
+
+
+def test_is_all_unit_semantics():
+    assert is_all_unit("") is True
+    assert is_all_unit("全部") is True
+    assert is_all_unit("all") is True
+    assert is_all_unit("整个项目") is True
+    assert is_all_unit("登录表单") is False

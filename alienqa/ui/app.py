@@ -16,6 +16,8 @@ from ..review import Decision, ReportBuilder
 from .runs import RunManager
 from .settings import SettingsStore, providers_from_config
 
+JOB_TIMEOUT_SECONDS = 600  # 后台扫描超时兜底（秒），超时标记 timeout 并释放并发锁
+
 
 def list_directory(path: str) -> dict:
     """磁盘目录浏览：空路径列出盘符；否则列出子项（目录在前）。"""
@@ -249,6 +251,17 @@ def _start_job(app, rec, project_path: str, entry: str) -> None:
                 srv.shutdown()
             app.config["running"] = False
 
-    thread = threading.Thread(target=_job, daemon=True)
-    app.config["jobs"][rec.id] = thread
-    thread.start()
+    worker = threading.Thread(target=_job, daemon=True)
+    app.config["jobs"][rec.id] = worker
+    worker.start()
+
+    def _watchdog():
+        worker.join(JOB_TIMEOUT_SECONDS)
+        if worker.is_alive():
+            app.config["runs"].finish(
+                rec.id, "timeout",
+                error=f"扫描超时（>{JOB_TIMEOUT_SECONDS}s，可能页面过重），已释放并发锁",
+            )
+            app.config["running"] = False
+
+    threading.Thread(target=_watchdog, daemon=True).start()
