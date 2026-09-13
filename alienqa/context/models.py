@@ -65,10 +65,29 @@ class ExplorerContext:
 
 @dataclass
 class InvestigatorContext:
-    """11 Investigation Agent 专用上下文（与 Explorer 隔离）。本期仅立契约。"""
+    """11 Investigation Agent 专用上下文（与 Explorer 隔离）。"""
 
     source: str = ""
     dom: str = ""
-    react_tree: str = ""
+    console: str = ""
+    network: str = ""
+    api: str = ""
     stack_trace: str = ""
-    git_diff: str = ""
+    react_tree: str = ""  # 延后
+    git_diff: str = ""    # 延后
+    action_trace: str = ""
+
+    def to_text(self) -> str:
+        parts = []
+        for label, value in (
+            ("源码", self.source),
+            ("DOM", self.dom),
+            ("控制台", self.console),
+            ("网络", self.network),
+            ("API", self.api),
+            ("堆栈", self.stack_trace),
+            ("动作轨迹", self.action_trace),
+        ):
+            if value:
+                parts.append(f"[{label}]\n{value}")
+        return "\n\n".join(parts)

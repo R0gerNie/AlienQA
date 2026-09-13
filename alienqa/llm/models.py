@@ -4,12 +4,13 @@ from enum import Enum
 
 
 class Role(str, Enum):
-    """四种 LLM 角色（对应 planbook 02/07/08）。"""
+    """五种 LLM 角色（对应 planbook 02/07/08/11）。"""
 
     GIST = "gist"                # A 主旨加载：便宜快速、低温度
     EXPECTATION = "expectation"  # B 预期生成：高温度、采样取并集
     JUDGE = "judge"              # C 盲判：强视觉模型、低温度
     VISUAL = "visual"            # D 视觉观察：描述视觉变化、低温度
+    INVESTIGATOR = "investigator"  # E 专家调查：可看源码、低温度
 
 
 @dataclass

@@ -146,6 +146,12 @@ class PlaywrightDriver(BaseDriver):
     def visible_text(self) -> str:
         return self._page.locator("body").inner_text()
 
+    def dom(self) -> str:
+        """当前页面完整 HTML（Investigator 专用，Explorer 不可见）。"""
+        if self._page is None:
+            return ""
+        return self._page.content()
+
     def interactive_elements(self) -> list:
         """枚举当前页面可交互元素（候选动作来源）。"""
         sel = "button, a[href], input, select, textarea, [role='button'], [role='link']"

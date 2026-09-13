@@ -106,3 +106,20 @@ class LlmRoles:
             "blank_screen / navigation / no_change / other"
         )
         return self.client.complete_vision(Role.VISUAL, text, [before_image, after_image]).text
+
+    # E 专家调查（低温度，可看源码，结构化输出）：给 11
+    def investigate(self, expert_context: str, repair: bool = False) -> str:
+        text = (
+            "你是资深前端调试专家。现在允许你查看源码、DOM、控制台、网络、堆栈等技术信号，"
+            "来定位一个已经由'陌生人用户'发现的问题。\n"
+            "请给出：1) 根因假设（root cause hypothesis）；2) 可执行的复现步骤；"
+            "3) 技术证据；4) 受影响的组件。\n"
+            "严格输出一个 JSON 对象（不要 markdown、不要多余文字）：\n"
+            '{"root_cause_hypothesis": "…", "reproduction_steps": ["1. …"], '
+            '"technical_evidence": {"stack_trace": "…", "api": "…", "component": "…"}, '
+            '"affected_components": ["…"]}\n\n'
+            f"专家上下文:\n{expert_context[:12000]}"
+        )
+        if repair:
+            text += "\n\n注意：你上一次的输出不是合法 JSON。这次只输出一个合法 JSON 对象。"
+        return self.client.complete(Role.INVESTIGATOR, [{"role": "user", "content": text}]).text

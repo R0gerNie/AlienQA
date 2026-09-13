@@ -56,3 +56,28 @@ class InvestigationAgent:
 
 - 专家上下文的源码检索范围与成本控制。
 - 是否需要多次"查证-修正"迭代。
+
+## 10. 实现拆解（2026-09-13 归档）
+
+> 决策：① 新增 `Role.INVESTIGATOR`（专家角色，模型/温度/fallbacks 走 LLM 层配置，可轮换）；② 源码检索按路由/组件名关键词过滤 `visible_files`（成本可控）；③ driver 加 `dom()`（`page.content()`）。React tree / git diff 本期延后。
+
+### 子模块
+
+```
+alienqa/investigation/
+├── models.py    # Investigation
+├── retriever.py # 源码关键词检索
+├── context.py   # build_investigator_context
+├── agent.py     # InvestigationAgent.investigate
+└── __init__.py
+```
+
+### 步骤
+
+- **S0** `Role.INVESTIGATOR` + config `investigator:` 段 + `LlmRoles.investigate(expert_ctx, repair)`（结构化 JSON）。
+- **S1** `Investigation` 模型 + 白名单解析。
+- **S2** 扩展 `InvestigatorContext`（+console/network/api/action_trace + `to_text`）+ `retriever` + `context` 装配。
+- **S3** `driver.dom()`。
+- **S4** `InvestigationAgent.investigate`（repair 重试一次）。
+- **S5** 测试：白名单、验收（空 Modal 指向 RefundModal + 可执行复现步骤）、源码检索、复现步骤引用 action trace、与 Explorer 隔离。
+

@@ -23,6 +23,10 @@ llm:
       model: gpt-4o
       temperature: 0.1
       fallbacks: []
+    investigator:                  # E 专家调查（11）：可看源码、低温度
+      model: gpt-4o
+      temperature: 0.1
+      fallbacks: []
 
 # 轮换示例（把上面 model 换成任意一行即可，配置驱动、零代码改动）：
 #   OpenAI:      gpt-4o / gpt-4o-mini / gpt-4.1
