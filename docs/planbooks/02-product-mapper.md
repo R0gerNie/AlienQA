@@ -76,3 +76,13 @@ class ProductMapper:
 
 - 超大项目的映射分片与合并策略。
 - 多语言/多租户前端的实体抽取规则。
+
+### 9.1 待决项（2026-09-13 归档）
+
+> 本期实现**未做**分片与多语言抽取，采用**预算截断兜底**：
+>
+> - 现状常量（`alienqa/mapper/filter.py`）：`MAX_SURFACE_CHARS=20_000`、`MAX_FILES=50`、`MAX_FILE_LINES=60`、`MAX_README_CHARS=4_000`。超出部分直接丢弃，不做分片与合并。
+> - 触发条件：待 **03 Exploration Context** 接入后，用真实大 baseline（如 `baselines/twenty`、`baselines/chatwoot`）端到端跑一遍，确认 20k 字符是否足以覆盖主要路由/页面；不足则回补分片。
+> - 分片方向（待定）：按 `VisibleFile.role` / 路由聚类分批调用 `map_product`，再合并 `areas`/`relations` 并去重。
+> - 多语言/实体抽取方向（待定）：先统计 baseline 语言分布，再决定规则抽取或交由 LLM 抽取。
+

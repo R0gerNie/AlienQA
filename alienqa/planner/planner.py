@@ -1,9 +1,10 @@
 """ActionPlanner：greedy 探索策略 + 端到端探索循环。"""
 import time
 
+from alienqa.context import ExplorationContext, ExplorerContext, Observation
 from alienqa.driver import Action, Target
 
-from .models import Candidate, ExploreBudget, ExploreContext
+from .models import Candidate, ExploreBudget
 from .scorer import score
 
 
@@ -35,7 +36,7 @@ class ActionPlanner:
             ))
         return candidates
 
-    def plan(self, ctx: ExploreContext, candidates, graph=None):
+    def plan(self, ctx: ExplorerContext, candidates, graph=None):
         """打分排序，返回最高分且未点击过的候选的 Action；无候选返回 None。"""
         if graph is not None:
             self.explored_routes = {n.route for n in graph.nodes}
@@ -60,23 +61,34 @@ class ActionPlanner:
         return self.steps >= self.budget.max_steps or elapsed >= self.budget.max_time_seconds
 
 
-def explore(driver, tracker, planner: ActionPlanner, budget: ExploreBudget | None = None):
-    """端到端探索循环：把 04 + 05 + 06 串起来。"""
+def explore(driver, tracker, planner: ActionPlanner, budget: ExploreBudget | None = None,
+            product_map=None, context_builder: ExplorationContext | None = None):
+    """端到端探索循环：把 04 + 05 + 06 串起来。
+
+    Explorer 上下文一律经 03 认知防火墙组装（单一出口），不直接读 driver。
+    """
     if budget is not None:
         planner.budget = budget
-    tracker.capture(driver)
+    builder = context_builder or ExplorationContext()
+    state = tracker.capture(driver)
     start = time.time()
     while True:
         if planner.should_stop(time.time() - start):
             break
-        ctx = ExploreContext(current_route=driver.url(), page_text=driver.visible_text())
+        observation = Observation(screenshot=driver.screenshot(), visible_text=driver.visible_text())
+        ctx = builder.build(
+            product_map=product_map,
+            state=state,
+            observation=observation,
+            history=tracker.sequence(),
+        )
         candidates = planner.extract_candidates(driver)
         action = planner.plan(ctx, candidates, tracker.graph())
         if action is None:
             break
         planner.steps += 1
         try:
-            tracker.capture(driver, action, timeout=1000)
+            state = tracker.capture(driver, action, timeout=1000)
         except Exception:
             # 点击失败（如被遮挡/元素消失）→ 跳过并继续，不中断探索
             continue

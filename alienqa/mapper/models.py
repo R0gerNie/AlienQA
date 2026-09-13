@@ -69,10 +69,11 @@ class Relation:
 
 @dataclass
 class ProductMap:
-    """产品地图：功能区域 + 页面关系。"""
+    """产品地图：功能区域 + 页面关系。brief 为主旨文本（03 的 product_brief 来源）。"""
 
     areas: list = field(default_factory=list)      # list[Area]
     relations: list = field(default_factory=list)  # list[Relation]
+    brief: str = ""
 
     @classmethod
     def from_dict(cls, data: dict) -> "ProductMap":

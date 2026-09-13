@@ -17,15 +17,6 @@ class Candidate:
 
 
 @dataclass
-class ExploreContext:
-    """Planner 所需的受限上下文（未来由 03 认知防火墙装配）。"""
-
-    current_route: str = ""
-    page_text: str = ""
-    product_brief: str = ""  # 占位，LLM 规划时用
-
-
-@dataclass
 class ExploreBudget:
     max_steps: int = 50
     max_time_seconds: float = 300.0

@@ -1,8 +1,9 @@
 """Action Planner 测试：单元（评分/预算）+ 集成（探索循环）。"""
 import pytest
 
+from alienqa.context import ExplorerContext
 from alienqa.driver import Action, PlaywrightDriver, Target
-from alienqa.planner import ActionPlanner, Candidate, ExploreBudget, ExploreContext, explore, score
+from alienqa.planner import ActionPlanner, Candidate, ExploreBudget, explore, score
 from alienqa.state import StateTracker
 
 pytest.importorskip("playwright", reason="Playwright 未安装")
@@ -39,14 +40,14 @@ def test_novelty_for_unexplored_link():
 def test_clicked_element_not_selected():
     p = ActionPlanner()
     p.clicked.add("#edit")
-    chosen = p.plan(ExploreContext(), [_cand("编辑", "#edit")], None)
+    chosen = p.plan(ExplorerContext(), [_cand("编辑", "#edit")], None)
     assert chosen is None
 
 
 def test_plan_picks_highest_score():
     p = ActionPlanner()
     cands = [_cand("编辑", "#edit"), _cand("再次退款", "#refund"), _cand("删除订单", "#del")]
-    chosen = p.plan(ExploreContext(), cands, None)
+    chosen = p.plan(ExplorerContext(), cands, None)
     assert chosen.target.text in ("再次退款", "删除订单")
 
 

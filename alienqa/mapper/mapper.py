@@ -22,7 +22,9 @@ class ProductMapper:
         surface_text = build_surface_text(project, root)
         readme = read_readme(root)
         gist = self.roles.summarize_gist(readme, surface_text)
-        return self._extract(gist, surface_text)
+        pm = self._extract(gist, surface_text)
+        pm.brief = gist
+        return pm
 
     def map_areas(self, project: Project) -> list:
         return self.map(project).areas

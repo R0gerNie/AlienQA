@@ -133,6 +133,7 @@ def test_map_end_to_end(mapper, fake_litellm, tmp_path):
         '"relations":[{"from":"/login","to":"/orders","kind":"navigate"}]}',  # map_product
     ])
     result = mapper.map(project)
+    assert result.brief == "这是一个电商后台，面向商家与管理员。"
     assert len(result.areas) == 1
     assert result.areas[0].name == "Auth"
     assert result.areas[0].actions == ["login"]
