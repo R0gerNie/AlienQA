@@ -21,15 +21,17 @@ class PlaywrightDriver(BaseDriver):
 
     # ---- 生命周期 ----
 
-    def launch(self, url: str) -> None:
+    def launch(self, url: str, storage_state: dict | None = None) -> None:
         from playwright.sync_api import sync_playwright
 
         self._pw = sync_playwright().start()
         self._browser = self._pw.chromium.launch(headless=self._headless)
-        self._context = self._browser.new_context(
-            viewport=_DEFAULT_VIEWPORT,
-            record_video_dir=self._record_video_dir,
-        )
+        kwargs = {"viewport": _DEFAULT_VIEWPORT}
+        if self._record_video_dir:
+            kwargs["record_video_dir"] = self._record_video_dir
+        if storage_state:
+            kwargs["storage_state"] = storage_state
+        self._context = self._browser.new_context(**kwargs)
         self._page = self._context.new_page()
         self._attach_listeners()
         self._page.goto(url)

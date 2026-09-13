@@ -12,6 +12,18 @@ class Target:
     x: int | None = None
     y: int | None = None
 
+    @classmethod
+    def from_dict(cls, d: dict) -> "Target":
+        if not isinstance(d, dict):
+            return cls()
+        return cls(
+            text=d.get("text"),
+            role=d.get("role"),
+            selector=d.get("selector"),
+            x=d.get("x"),
+            y=d.get("y"),
+        )
+
 
 @dataclass
 class Action:
@@ -20,3 +32,13 @@ class Action:
     type: str  # click | hover | type | press
     target: Target = field(default_factory=Target)
     text: str = ""  # type/press 的输入
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Action":
+        if not isinstance(d, dict):
+            raise ValueError(f"action 需要 dict，收到 {type(d)!r}")
+        return cls(
+            type=d.get("type", ""),
+            target=Target.from_dict(d.get("target") or {}),
+            text=d.get("text", ""),
+        )

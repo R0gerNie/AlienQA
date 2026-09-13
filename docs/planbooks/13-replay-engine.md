@@ -66,3 +66,29 @@ class ReplayEngine:
 
 - 回放环境与录制环境不完全一致时的容错策略。
 - 是否需要并行回放以验证稳定性。
+
+## 10. 实现拆解（2026-09-13 归档）
+
+> 决策：① 会话态还原用 `launch(url, storage_state=None)`；② `match_score` 用**纯截图相似度**（信号只参与 `reproduced` 判定）；③ 回放结果存 `replay/<evidence_id>.json`。
+
+### 子模块
+
+```
+alienqa/replay/
+├── models.py   # ReplayResult（evidence_id / reproduced / match_score / note）
+├── engine.py   # ReplayEngine.save(evidence) / replay(evidence_id)
+├── scorer.py   # image_similarity + signal_overlap
+└── __init__.py
+```
+
+### 步骤
+
+- **S0** `Action.from_dict` / `Target.from_dict`：回放包 dict → 结构化 Action。
+- **S1** `PlaywrightDriver.launch(url, storage_state=None)`：创建 context 时还原 cookies（localStorage 还原延后）。
+- **S2** `ReplayResult` 模型。
+- **S3** `save(evidence)`：回放包落盘 `replay/<evidence_id>.json`。
+- **S4** `replay(evidence_id)`：读包 → `launch(url, storage_state)` → 逐条重放 `action_sequence` → 采 after 截图 + 运行时信号。
+- **S5** `scorer`：两图缩到 64×64 灰度算平均绝对差相似度；信号重叠判定。
+- **S6** `reproduced = match_score ≥ 0.7 或 信号命中`；`reproduced=false` 附降权提示（环境相关/偶发）。
+- **S7** 测试：from_dict 往返、会话态还原、端到端复现、相似度、篡改包→不可复现、信号复现。
+
