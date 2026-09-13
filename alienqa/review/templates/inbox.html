@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <title>AlienQA 证据审核</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2em; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: .5em .8em; text-align: left; }
+    .switch input { transform: scale(1.3); cursor: pointer; }
+    a { margin-right: 1em; }
+  </style>
+</head>
+<body>
+  <h1>证据审核</h1>
+  <p>
+    <a href="/?sort=severity">按严重度排序</a>
+    <a href="/?sort=alphabetical">按字母序排序</a>
+    <a href="/report">查看报告</a>
+  </p>
+  <table>
+    <tr><th>ID</th><th>严重度</th><th>预期</th><th>采信</th><th>状态</th></tr>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.id }}</td>
+      <td>{{ r.severity }}</td>
+      <td>{{ r.expectation }}</td>
+      <td class="switch">
+        <input type="checkbox" data-id="{{ r.id }}" {% if r.accepted %}checked{% endif %}>
+      </td>
+      <td>{{ r.decision }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <script>
+    document.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        fetch('/decide', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            evidence_id: cb.dataset.id,
+            decision: cb.checked ? 'confirmed' : 'rejected',
+            note: ''
+          })
+        });
+      });
+    });
+  </script>
+</body>
+</html>

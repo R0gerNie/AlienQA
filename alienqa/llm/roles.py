@@ -123,3 +123,18 @@ class LlmRoles:
         if repair:
             text += "\n\n注意：你上一次的输出不是合法 JSON。这次只输出一个合法 JSON 对象。"
         return self.client.complete(Role.INVESTIGATOR, [{"role": "user", "content": text}]).text
+
+    # F 报告编排（可配置，生成 HTML 片段）：给 12
+    def compose_report(self, evidence_json: str) -> str:
+        text = (
+            "你是资深测试报告撰写人。下面是一批已被人工采信的疑似问题证据（JSON）。\n"
+            "请把所有证据编排成一份**给人类开发者看的 HTML 报告**（只需 <body> 内的 HTML 片段，"
+            "不要 <html>/<head>，不要 markdown 代码块）。\n"
+            "报告必须包含：\n"
+            "1. 顶部：标题 + 环境信息（url/browser）+ 证据总数；\n"
+            "2. 每个证据一个区块：严重度、预期、实际、**可执行的复现步骤**（指导开发者复现）、"
+            "console/network 技术信号、根因假设；\n"
+            "3. 用语义化 HTML（h1/h2/table/ul/ol/code），样式简洁可读。\n\n"
+            f"证据数据:\n{evidence_json[:16000]}"
+        )
+        return self.client.complete(Role.REPORTER, [{"role": "user", "content": text}]).text

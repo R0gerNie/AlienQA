@@ -11,6 +11,7 @@ class Role(str, Enum):
     JUDGE = "judge"              # C 盲判：强视觉模型、低温度
     VISUAL = "visual"            # D 视觉观察：描述视觉变化、低温度
     INVESTIGATOR = "investigator"  # E 专家调查：可看源码、低温度
+    REPORTER = "reporter"          # F 报告编排：采信证据→HTML，低温度
 
 
 @dataclass
