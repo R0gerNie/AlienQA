@@ -146,8 +146,9 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
             return "未找到该扫描", 404
         report_exists = (rec.dir / "report.html").exists()
         review_ready = (rec.dir / "evidences.json").exists()
+        scope = runs.load_scope(run_id)
         return render_template("run.html", active="run", rec=rec,
-                               report_exists=report_exists, review_ready=review_ready)
+                               report_exists=report_exists, review_ready=review_ready, scope=scope)
 
     @app.route("/runs/<run_id>/review")
     def run_review(run_id):
@@ -233,6 +234,7 @@ def _start_job(app, rec, project_path: str, entry: str) -> None:
             )
             result = pipeline.collect(project)
             app.config["runs"].save_results(rec.id, result.evidences, result.investigations)
+            app.config["runs"].save_scope(rec.id, result.scope)
             app.config["runs"].finish(
                 rec.id, "done",
                 evidence_count=len(result.evidences),

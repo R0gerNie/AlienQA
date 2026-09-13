@@ -46,6 +46,20 @@ def test_run_record_instructions(tmp_path):
     assert rm.get(rec.id).instructions == "错误密码应有提示"
 
 
+def test_save_and_load_scope(tmp_path):
+    from types import SimpleNamespace
+
+    rm = RunManager(tmp_path / "runs")
+    rec = rm.create("d:/p", unit="登录表单", instructions="错误密码应有提示")
+    scope = SimpleNamespace(unit="登录表单", instructions="错误密码应有提示",
+                            selectors=["#login"], keywords=["登录"], summary="登录表单")
+    rm.save_scope(rec.id, scope)
+    loaded = rm.load_scope(rec.id)
+    assert loaded["summary"] == "登录表单"
+    assert loaded["selectors"] == ["#login"]
+    assert loaded["keywords"] == ["登录"]
+
+
 def test_save_and_load_results_and_review(tmp_path):
     from alienqa.evidence import Evidence, Severity
     from alienqa.investigation import Investigation

@@ -17,7 +17,7 @@ from .evidence import EvidenceEngine
 from .expectation import ExpectationEngine, PageInfo
 from .investigation import InvestigationAgent
 from .llm import LLMClient, LLMConfig
-from .loader import Project, UnitLocator
+from .loader import Project, UnitLocator, UnitScope
 from .mapper import ProductMapper
 from .observation import ObservationEngine
 from .planner import ActionPlanner, ExploreBudget
@@ -43,6 +43,7 @@ class PipelineResult:
     issues: list = field(default_factory=list)
     investigations: list = field(default_factory=list)
     states: list = field(default_factory=list)
+    scope: UnitScope | None = None
 
     @property
     def html(self) -> str:
@@ -140,6 +141,8 @@ class AlienQAPipeline:
             locator = UnitLocator(self.client)
             scope = locator.locate(self.unit, self.instructions, pm.brief, driver.interactive_elements())
             self._log(f"[01+] 单元定位: {scope.summary or '未定位到具体元素（退化为全量探索）'}")
+            if scope is not None and scope.summary:
+                exp_engine.focus = (self.focus + f"\n定位结果：{scope.summary}").strip()
 
         self._log("[06] 探索启动，逐动作执行 08 预期 + 07 观察 + 09 证据…")
 
@@ -222,6 +225,7 @@ class AlienQAPipeline:
             issues=issues,
             investigations=investigations,
             states=tracker.sequence(),
+            scope=scope,
         )
 
 

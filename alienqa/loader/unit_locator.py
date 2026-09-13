@@ -28,6 +28,10 @@ def _as_str_list(value) -> list:
     return out
 
 
+def _norm_selector(s: str) -> str:
+    return (s or "").strip().strip("'\"").strip()
+
+
 @dataclass
 class UnitScope:
     """一个单元的可执行范围：命中 selectors 或文本关键词的元素属于该单元。"""
@@ -45,10 +49,10 @@ class UnitScope:
         """判断一个候选元素是否落在本单元内；空范围=不限（全量探索）。"""
         if self.is_empty():
             return True
-        selector = (getattr(candidate, "selector", "") or "").strip()
+        selector = _norm_selector(getattr(candidate, "selector", "") or "")
         text = (getattr(candidate, "text", "") or "").strip()
         href = (getattr(candidate, "href", "") or "").strip()
-        if selector and selector in self.selectors:
+        if selector and selector in {_norm_selector(s) for s in self.selectors}:
             return True
         haystack = f"{text} {href}".lower()
         for kw in self.keywords:

@@ -218,6 +218,28 @@ class RunManager:
                 state.decide(ev_id, Decision(v["decision"]), v.get("note", ""))
         return state
 
+    def save_scope(self, run_id: str, scope) -> None:
+        """保存单元定位结果（UnitScope）到 unit_scope.json。"""
+        rec = self.get(run_id)
+        if rec is None or scope is None:
+            return
+        (rec.dir / "unit_scope.json").write_text(
+            json.dumps({
+                "unit": getattr(scope, "unit", "") or "",
+                "instructions": getattr(scope, "instructions", "") or "",
+                "selectors": list(getattr(scope, "selectors", []) or []),
+                "keywords": list(getattr(scope, "keywords", []) or []),
+                "summary": getattr(scope, "summary", "") or "",
+            }, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def load_scope(self, run_id: str) -> dict | None:
+        path = self.root / run_id / "unit_scope.json"
+        if not path.exists():
+            return None
+        return json.loads(path.read_text(encoding="utf-8"))
+
     def _write(self, rec: RunRecord) -> None:
         rec.dir.mkdir(parents=True, exist_ok=True)
         self._json_path(rec.id).write_text(

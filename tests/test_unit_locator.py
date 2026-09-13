@@ -63,6 +63,13 @@ def test_scope_keyword_match():
     assert UnitScope(keywords=["login"]).matches(_Cand(text="Login page")) is True
 
 
+def test_scope_selector_match_normalized():
+    s = UnitScope(selectors=["#login"])
+    assert s.matches(_Cand(selector="'#login'")) is True
+    assert s.matches(_Cand(selector=' "#login" ')) is True
+    assert s.matches(_Cand(selector="#greet")) is False
+
+
 # ---- UnitLocator.locate ----
 
 def test_locate_parses_json(monkeypatch):

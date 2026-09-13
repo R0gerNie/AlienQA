@@ -11,6 +11,14 @@
   <tr><th>证据 / Issue / 采信</th><td>{{ rec.evidence_count }} / {{ rec.issue_count }} / {{ rec.accepted_count }}</td></tr>
   {% if rec.error %}<tr><th>错误</th><td style="color:#cf222e;">{{ rec.error }}</td></tr>{% endif %}
 </table>
+
+{% if scope %}
+<h2>单元定位结果</h2>
+<p>{{ scope.summary or '（已定位，无摘要）' }}</p>
+{% if scope.selectors %}<p class="muted">命中 selector：{% for s in scope.selectors %}<code>{{ s }}</code> {% endfor %}</p>{% endif %}
+{% if scope.keywords %}<p class="muted">关键词：{% for k in scope.keywords %}<code>{{ k }}</code> {% endfor %}</p>{% endif %}
+{% endif %}
+
 {% if report_exists %}
 <p><a href="/runs/{{ rec.id }}/report">查看报告</a> · <a href="/runs/{{ rec.id }}/review">重新审核</a></p>
 {% elif review_ready %}
