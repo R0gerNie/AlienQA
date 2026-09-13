@@ -32,7 +32,9 @@
       fetch('/definitely-missing.json').catch(function () {});
     });
     document.getElementById('fetch-refused').addEventListener('click', function () {
-      fetch('http://nonexistent.invalid/nope').catch(function () {});
+      // 127.0.0.1:1 是 Chromium 禁用的不安全端口，连接在发起前即被拒绝，
+      // 确定性触发 requestfailed(net::ERR_UNSAFE_PORT)，不依赖 DNS/外网。
+      fetch('http://127.0.0.1:1/nope').catch(function () {});
     });
   </script>
 </body>

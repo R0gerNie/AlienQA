@@ -68,7 +68,9 @@ def test_http_error_captured(driver):
 
 def test_network_failure_captured(driver):
     driver.execute(Action("click", Target(selector="#fetch-refused")))
-    assert _wait_for(lambda: any("NAME_NOT_RESOLVED" in e for e in driver.collect_runtime().network_failures))
+    # 点击后应捕获到对不安全端口 127.0.0.1:1 的请求失败（net::ERR_UNSAFE_PORT），
+    # 该失败确定性触发，不依赖 DNS 解析结果。
+    assert _wait_for(lambda: any("127.0.0.1:1" in e for e in driver.collect_runtime().network_failures))
 
 
 # ---- 与 Loader 打通 ----

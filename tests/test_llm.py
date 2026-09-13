@@ -10,6 +10,7 @@ from alienqa.llm import (
     Role,
     RoleConfig,
     encode_image,
+    load_config,
     resolve_model,
 )
 
@@ -163,3 +164,36 @@ def test_judge_uses_vision(client):
     content = call["messages"][0]["content"]
     assert len(content) == 3  # text + 2 images
     assert "点击保存" in content[0]["text"]
+
+
+# ---- 配置加载（pyyaml）----
+
+def test_load_config_from_yaml(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        "llm:\n"
+        "  default_provider: openai\n"
+        "  roles:\n"
+        "    gist:\n"
+        "      model: gpt-4o-mini\n"
+        "      temperature: 0.1\n"
+        "    judge:\n"
+        "      model: gpt-4o\n"
+        "      fallbacks: [anthropic/claude-3-5-sonnet]\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(cfg_file)
+    assert cfg.default_provider == "openai"
+    assert cfg.role(Role.GIST).model == "gpt-4o-mini"
+    assert cfg.role(Role.GIST).temperature == 0.1
+    assert cfg.role(Role.JUDGE).fallbacks == ["anthropic/claude-3-5-sonnet"]
+
+
+def test_load_config_project_yaml():
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[1]
+    cfg = load_config(root / "config" / "config.yaml")
+    assert set(cfg.roles) == {"gist", "expectation", "judge"}
+    assert cfg.role(Role.JUDGE).model == "gpt-4o"
+    assert cfg.role(Role.EXPECTATION).temperature == 0.8
