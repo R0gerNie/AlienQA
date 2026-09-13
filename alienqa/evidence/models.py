@@ -21,6 +21,7 @@ class Evidence:
     """一条疑似问题证据：八要素 + 严重度 + 置信度 + replay。"""
 
     id: str = ""
+    issue_id: str = ""                                 # 10 去重回写关联
     action: dict = field(default_factory=dict)        # 触发动作（type + target）
     expectation: str = ""                              # 预期（what was expected）
     observation_summary: str = ""                      # 实际（what happened）
@@ -35,6 +36,7 @@ class Evidence:
     def to_dict(self) -> dict:
         return {
             "id": self.id,
+            "issue_id": self.issue_id,
             "action": self.action,
             "expectation": self.expectation,
             "observation_summary": self.observation_summary,

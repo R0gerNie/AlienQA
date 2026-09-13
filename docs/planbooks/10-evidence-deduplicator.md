@@ -66,3 +66,28 @@ class Deduplicator:
 
 - 聚类阈值的人工可调与自动学习。
 - Issue 自动标题生成的质量。
+
+## 10. 实现拆解（2026-09-13 归档）
+
+> 决策：① embedding **两种模式可配置**（`deterministic` 字符 2-gram + aHash / `llm` 文本 embedding + 截图仍用 aHash 预筛）；② 阈值可配置，默认文本 Jaccard `≥ 0.5`、截图 Hamming `≤ 8`（64 位）。
+
+### 子模块
+
+```
+alienqa/dedup/
+├── models.py      # Issue / Vector
+├── similarity.py  # text_jaccard / ahash / hamming / cosine
+├── engine.py      # Deduplicator.cluster / embed
+└── __init__.py
+```
+
+### 步骤
+
+- **S0** `Evidence.issue_id` 字段（回写关联）。
+- **S1** `Issue` 模型（id/title/evidence_ids/root_cause_candidate/severity 取最高）。
+- **S2** `similarity`：文本 2-gram Jaccard、截图 aHash（8×8 灰度阈值）、Hamming、LLM 向量 cosine。
+- **S3** `embed()` 两种模式：deterministic（grams + aHash）/ llm（`litellm.embedding` + aHash，`embed_func` 可注入）。
+- **S4** `cluster()` 两级聚类（并查集）：硬聚类 `(replay.url, 异常类型桶)` → 软聚类 `text_ok AND hash_ok`。
+- **S5** Issue 生成 + 回写 `issue_id`。
+- **S6** 测试：同页面同类型归并、5 条白屏跨页面归并、不同根因不合并、embed 确定性、回写、severity 取最高、LLM 模式。
+
