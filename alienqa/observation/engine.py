@@ -13,7 +13,8 @@ class ObservationEngine:
     def observe(self, before, after, action, page, before_runtime=None) -> Observation:
         """before/after 为截图 bytes；action 为 Action；page 为 driver。"""
         desc = _action_desc(action)
-        visual = self.visual.observe(before, after, desc)
+        page_text = _page_text(page)
+        visual = self.visual.observe(before, after, desc, page_text=page_text)
         runtime = self.runtime.observe(page, before=before_runtime)
         return Observation(
             before_image=before,
@@ -22,6 +23,16 @@ class ObservationEngine:
             visual=visual,
             runtime=runtime,
         )
+
+
+def _page_text(page) -> str:
+    attr = getattr(page, "visible_text", "")
+    if callable(attr):
+        try:
+            return attr() or ""
+        except Exception:  # noqa: BLE001
+            return ""
+    return attr or ""
 
 
 def _action_desc(action) -> str:

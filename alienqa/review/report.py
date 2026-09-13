@@ -4,6 +4,37 @@ import json
 from ..llm import LLMClient, LlmRoles
 from .models import Decision, Report, ReviewState
 
+# 报告基础样式：LLM 只产出 body 片段，这里包装成带 CSS 的可读 HTML 文档。
+_REPORT_STYLE = """
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+         max-width: 920px; margin: 2rem auto; padding: 0 1rem;
+         color: #1f2328; line-height: 1.6; }
+  h1 { border-bottom: 2px solid #1f2328; padding-bottom: .4em; }
+  h2 { margin-top: 1.6em; border-left: 4px solid #0969da; padding-left: .6em; }
+  section { border: 1px solid #d0d7de; border-radius: 8px;
+            padding: 1em 1.2em; margin: 1.2em 0; background: #fff; }
+  table { border-collapse: collapse; width: 100%; margin: .5em 0; }
+  th, td { border: 1px solid #d0d7de; padding: .45em .7em; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; white-space: nowrap; }
+  code { background: #f6f8fa; padding: .12em .35em; border-radius: 4px;
+         font-family: ui-monospace, SFMono-Regular, monospace; font-size: .9em; }
+  ol, ul { margin: .4em 0; padding-left: 1.7em; }
+  hr { border: none; border-top: 1px dashed #d0d7de; margin: 1.5em 0; }
+  small { color: #57606a; }
+</style>
+"""
+
+
+def render_report_html(fragment: str) -> str:
+    """把 LLM 产出的 body 片段包装成带样式的完整 HTML 文档。"""
+    return (
+        "<!doctype html><html lang=\"zh\"><head><meta charset=\"utf-8\">"
+        "<title>AlienQA 疑似问题报告</title>"
+        f"{_REPORT_STYLE}</head><body>"
+        f"{fragment}</body></html>"
+    )
+
 
 class ReportBuilder:
     def __init__(self, client: LLMClient):
@@ -19,8 +50,12 @@ class ReportBuilder:
             ensure_ascii=False,
             indent=2,
         )
-        html = self.roles.compose_report(payload)
-        return Report(html=html, accepted_count=len(accepted), total_count=len(evidences))
+        fragment = self.roles.compose_report(payload)
+        return Report(
+            html=render_report_html(fragment),
+            accepted_count=len(accepted),
+            total_count=len(evidences),
+        )
 
     def _validate(self, evidences, state: ReviewState) -> None:
         for e in evidences:

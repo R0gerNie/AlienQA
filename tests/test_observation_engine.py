@@ -100,6 +100,13 @@ def test_blank_screen_score_invalid_image():
     assert blank_screen_score(b"not-an-image") == 0.0
 
 
+def test_blank_screen_score_with_visible_text():
+    """白底正常页（有可见文字）不应被判定为白屏。"""
+    white = _png(white=True)
+    assert blank_screen_score(white) > 0.9
+    assert blank_screen_score(white, visible_text="有内容") == 0.0
+
+
 # ---- 视觉观察 ----
 
 def test_visual_observer_parses_llm(monkeypatch):

@@ -4,45 +4,67 @@
   <meta charset="utf-8">
   <title>AlienQA 证据审核</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 2em; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: .5em .8em; text-align: left; }
-    .switch input { transform: scale(1.3); cursor: pointer; }
-    a { margin-right: 1em; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 2em; color: #1f2328; }
+    h1 { border-bottom: 2px solid #1f2328; padding-bottom: .3em; }
+    .toolbar a { margin-right: 1.2em; text-decoration: none; color: #0969da; }
+    .toolbar a.active { font-weight: 700; text-decoration: underline; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1em; }
+    th, td { border: 1px solid #d0d7de; padding: .6em .8em; text-align: left; }
+    th { background: #f6f8fa; }
+    .switch { text-align: center; white-space: nowrap; }
+    /* 采信 / 不采信 切换开关 */
+    .toggle { position: relative; display: inline-block; width: 52px; height: 26px; vertical-align: middle; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background: #d1242f;
+              border-radius: 26px; transition: .2s; }
+    .slider::before { content: ""; position: absolute; height: 20px; width: 20px;
+                      left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+    .toggle input:checked + .slider { background: #1a7f37; }
+    .toggle input:checked + .slider::before { transform: translateX(26px); }
+    .sw-label { display: inline-block; min-width: 3.5em; margin-left: .5em;
+                font-weight: 700; vertical-align: middle; }
+    .sw-label.on { color: #1a7f37; }
+    .sw-label.off { color: #d1242f; }
   </style>
 </head>
 <body>
   <h1>证据审核</h1>
-  <p>
-    <a href="/?sort=severity">按严重度排序</a>
-    <a href="/?sort=alphabetical">按字母序排序</a>
+  <div class="toolbar">
+    <a href="/?sort=severity" {% if sort == 'severity' %}class="active"{% endif %}>按严重度排序</a>
+    <a href="/?sort=alphabetical" {% if sort == 'alphabetical' %}class="active"{% endif %}>按字母序排序</a>
     <a href="/report">查看报告</a>
-  </p>
+  </div>
   <table>
-    <tr><th>ID</th><th>严重度</th><th>预期</th><th>采信</th><th>状态</th></tr>
+    <tr><th>ID</th><th>严重度</th><th>预期</th><th>采信 / 不采信</th><th>状态</th></tr>
     {% for r in rows %}
     <tr>
-      <td>{{ r.id }}</td>
+      <td><code>{{ r.id }}</code></td>
       <td>{{ r.severity }}</td>
       <td>{{ r.expectation }}</td>
       <td class="switch">
-        <input type="checkbox" data-id="{{ r.id }}" {% if r.accepted %}checked{% endif %}>
+        <label class="toggle">
+          <input type="checkbox" data-id="{{ r.id }}" {% if r.accepted %}checked{% endif %}>
+          <span class="slider"></span>
+        </label>
+        <span class="sw-label {% if r.accepted %}on{% else %}off{% endif %}" data-label="{{ r.id }}">
+          {{ '采信' if r.accepted else '不采信' }}
+        </span>
       </td>
       <td>{{ r.decision }}</td>
     </tr>
     {% endfor %}
   </table>
   <script>
-    document.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+    document.querySelectorAll('.toggle input').forEach(function (cb) {
       cb.addEventListener('change', function () {
+        var label = document.querySelector('.sw-label[data-label="' + cb.dataset.id + '"]');
         fetch('/decide', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            evidence_id: cb.dataset.id,
-            decision: cb.checked ? 'confirmed' : 'rejected',
-            note: ''
-          })
+          body: JSON.stringify({evidence_id: cb.dataset.id, decision: cb.checked ? 'confirmed' : 'rejected', note: ''})
+        }).then(function () {
+          label.textContent = cb.checked ? '采信' : '不采信';
+          label.className = 'sw-label ' + (cb.checked ? 'on' : 'off');
         });
       });
     });

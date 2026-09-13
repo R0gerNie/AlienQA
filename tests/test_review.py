@@ -87,6 +87,18 @@ def test_report_only_confirmed(reporter):
     assert "EV-002" not in prompt
 
 
+def test_report_is_styled_html_document(reporter):
+    """模块 12 的永久报告编排器：产出带样式的完整 HTML 文档。"""
+    builder, fake = reporter
+    fake.texts.append("<h1>报告</h1><section>内容</section>")
+    state = ReviewState()
+    state.decide("EV-001", Decision.CONFIRMED)
+    r = builder.build([_ev("EV-001", expectation="x")], state)
+    assert r.html.startswith("<!doctype html>")
+    assert "<style>" in r.html
+    assert "<h1>报告</h1>" in r.html
+
+
 def test_report_blocks_on_by_design(reporter):
     builder, _ = reporter
     state = ReviewState()
