@@ -19,6 +19,19 @@ def _format_technical(technical: dict) -> str:
     return "\n".join(lines)
 
 
+def _clean_expectation(line: str) -> str:
+    """清洗预期行：去 markdown 加粗/列表标记/编号，过滤空壳行。"""
+    import re
+
+    line = (line or "").strip()
+    if not line:
+        return ""
+    line = re.sub(r"^\s*\*{1,2}\s*", "", line)
+    line = re.sub(r"^\s*(?:\d+[.)、]|[-•·])\s*", "", line)
+    line = line.strip(" *•·").strip()
+    return line if len(line) >= 2 else ""
+
+
 class LlmRoles:
     def __init__(self, client: LLMClient):
         self.client = client
@@ -54,16 +67,16 @@ class LlmRoles:
         prompt = (
             "你是一名第一次打开这个产品、从未受过任何培训的普通用户。"
             "你只看到产品简介和当前界面可见文字。\n"
-            "请用最朴素的直觉，列出：1) 这个界面有哪些功能；2) 每个可见按钮/输入框/链接，"
-            "你自然而然会预期它点了之后发生什么；3) 哪些地方让你觉得'好像少了点什么'。\n"
-            "不要猜测实现技术，不要为产品找解释，就按一个普通人的直觉说。\n\n"
+            "请用最朴素的直觉，直接输出一个简洁列表：每个可见按钮/输入框/链接，"
+            "你自然而然会预期它点了之后发生什么；以及哪些地方让你觉得'好像少了点什么'。\n"
+            "每条预期一行，不要小标题、不要 markdown 加粗、不要编号、不要解释。\n\n"
             f"产品简介:\n{gist}\n\n当前界面文字:\n{page_text[:4000]}"
         )
         results = set()
         for _ in range(max(1, samples)):
             resp = self.client.complete(Role.EXPECTATION, [{"role": "user", "content": prompt}])
             for line in resp.text.splitlines():
-                line = line.strip(" -•·0123456789. ").strip()
+                line = _clean_expectation(line)
                 if line:
                     results.add(line)
         return sorted(results)
