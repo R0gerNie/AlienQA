@@ -1,9 +1,5 @@
 """Browser Controller 测试：使用无数据库的轻量静态目标（HTTP 服务）。"""
-import threading
 import time
-from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 
 import pytest
 
@@ -12,33 +8,14 @@ pytest.importorskip("playwright", reason="Playwright 未安装")
 from alienqa.driver import Action, PlaywrightDriver, Target
 from alienqa.loader import Project
 
-FIXTURES = Path(__file__).parent / "fixtures"
-
-
-class _QuietHandler(SimpleHTTPRequestHandler):
-    def log_message(self, *args):  # 静默请求日志
-        pass
-
 
 def _wait_for(pred, timeout: float = 3.0) -> bool:
-    import time as _t
-
-    deadline = _t.time() + timeout
-    while _t.time() < deadline:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
         if pred():
             return True
-        _t.sleep(0.1)
+        time.sleep(0.1)
     return False
-
-
-@pytest.fixture(scope="module")
-def http_base_url():
-    handler = partial(_QuietHandler, directory=str(FIXTURES))
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{server.server_address[1]}"
-    server.shutdown()
 
 
 @pytest.fixture

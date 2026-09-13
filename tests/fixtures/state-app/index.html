@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AlienQA State App</title>
+  <style>
+    .tab { margin-right: 4px; }
+    #view { margin: 10px 0; padding: 8px; border: 1px solid #ccc; min-height: 40px; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.3); }
+    .modal-overlay.open { display: block; }
+    .modal-box { margin: 100px auto; width: 240px; background: #fff; padding: 16px; }
+    #counter { margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <button class="tab" data-view="home">Home</button>
+  <button class="tab" data-view="orders">Orders</button>
+  <button class="tab" data-view="settings">Settings</button>
+  <div id="view">Welcome to Home</div>
+  <button id="open-modal">Open modal</button>
+  <button id="count-up">Count up</button>
+  <div id="counter">count: 0</div>
+  <div id="clock">--:--:--</div>
+  <div id="rid">id-0000000000000000</div>
+  <div id="order">已退款订单 #12345</div>
+  <button id="refund-again">再次退款</button>
+  <button id="delete-order">删除订单</button>
+  <button id="edit-order">编辑</button>
+  <div class="modal-overlay" id="modal">
+    <div class="modal-box">
+      <p>Refund form</p>
+      <button id="close-modal">Close</button>
+    </div>
+  </div>
+  <script>
+    var views = { home: 'Welcome to Home', orders: 'Order list here', settings: 'Settings page' };
+    document.querySelectorAll('.tab').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.getElementById('view').textContent = views[btn.dataset.view];
+      });
+    });
+    document.getElementById('open-modal').addEventListener('click', function () {
+      document.getElementById('modal').classList.add('open');
+    });
+    document.getElementById('close-modal').addEventListener('click', function () {
+      document.getElementById('modal').classList.remove('open');
+    });
+    var n = 0;
+    document.getElementById('count-up').addEventListener('click', function () {
+      n += 1;
+      document.getElementById('counter').textContent = 'count: ' + n;
+    });
+    document.getElementById('refund-again').addEventListener('click', function () {
+      document.getElementById('order').textContent = '退款申请中 #12345';
+    });
+    document.getElementById('delete-order').addEventListener('click', function () {
+      document.getElementById('order').textContent = '已删除 #12345';
+    });
+    document.getElementById('edit-order').addEventListener('click', function () {
+      document.getElementById('order').textContent = '编辑中 #12345';
+    });
+    function tick() {
+      var d = new Date();
+      var pad = function (x) { return String(x).padStart(2, '0'); };
+      document.getElementById('clock').textContent =
+        d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+        pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    }
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>

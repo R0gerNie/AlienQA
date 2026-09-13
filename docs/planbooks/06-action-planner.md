@@ -40,8 +40,13 @@ score = w1 * novelty        # 新状态/新页面
 
 ```python
 class ActionPlanner:
-    def plan(self, ctx: ExplorerContext, graph: StateGraph) -> Action: ...
-    def score(self, candidate: Action, ctx) -> float: ...
+    def extract_candidates(self, driver, ctx) -> list[Candidate]: ...
+    def score(self, candidate: Candidate, ctx) -> float: ...
+    def plan(self, ctx, candidates, graph) -> Action | None: ...
+    def should_stop(self, steps: int, elapsed: float, budget) -> bool: ...
+
+
+def explore(driver, tracker, planner, budget=None) -> StateTracker: ...
 ```
 
 ## 6. 关系
@@ -56,10 +61,24 @@ class ActionPlanner:
 
 ## 8. 验收标准
 
-- 面对"已退款订单"场景，优先产出"再次退款"而非无关按钮。
-- 步数预算耗尽时自动停止。
+1. 未点击过的高风险/边界元素，打分高于普通元素。
+2. 已点击过的元素不再被选中（去重）。
+3. 链接指向未探索 route 时 novelty 加分。
+4. 步数/时间预算耗尽 → `explore` 停止。
+5. `explore` 在 demo app 上探索到 N 个状态且不无限循环。
+6. `plan` 返回可直接交给 04 的结构化 `Action`。
 
 ## 9. 开放问题
 
 - 评分权重如何随项目类型自适应。
 - 是否引入"目标导向探索"（为验证某假设而定向操作）。
+
+## 10. 实现步骤（建议顺序）
+
+1. **数据模型**：`Candidate`（Action + 元素元数据）、`ExploreContext`（current_route/page_text/product_brief 占位，未来由 03 接管装配）、`ExploreBudget`（max_steps/max_time）。
+2. **driver 补可交互元素枚举**：`PlaywrightDriver.interactive_elements()`（button / a[href] / input / select / textarea / [role=button|link]）。
+3. **候选提取**：`extract_candidates(driver, ctx)`，过滤不可见/空元素。
+4. **价值评分器（纯函数）**：RISK / BOUNDARY / NAVIGATION 关键词表 + `score(candidate, ctx)`（coverage_gain + risk + boundary + novelty 加权，权重可配置）。
+5. **Planner 核心**：`plan` 打分排序取最高（带 reason）；维护 `clicked` 集合 + 从 `graph()` 读 explored_routes；`should_stop()` 预算判断。
+6. **探索循环（端到端）**：`explore(driver, tracker, planner, budget)`，把 04+05+06 串起来。
+7. **测试/验收**：单元（scorer/预算）+ 集成（demo app 上跑 explore），对齐第 8 节 6 条验收标准。

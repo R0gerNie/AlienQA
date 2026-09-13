@@ -138,6 +138,60 @@ class PlaywrightDriver(BaseDriver):
     def computed_style(self, selector: str, prop: str) -> str:
         return self._page.locator(selector).evaluate(f"el => getComputedStyle(el).{prop}")
 
+    def url(self) -> str:
+        return self._page.url
+
+    def visible_text(self) -> str:
+        return self._page.locator("body").inner_text()
+
+    def interactive_elements(self) -> list:
+        """枚举当前页面可交互元素（候选动作来源）。"""
+        sel = "button, a[href], input, select, textarea, [role='button'], [role='link']"
+        items = []
+        locator = self._page.locator(sel)
+        for i in range(locator.count()):
+            loc = locator.nth(i)
+            try:
+                visible = loc.is_visible()
+            except Exception:
+                continue
+            try:
+                text = (loc.inner_text() or "").strip()
+            except Exception:
+                text = ""
+            try:
+                tag = loc.evaluate("el => el.tagName.toLowerCase()")
+            except Exception:
+                tag = ""
+            try:
+                href = loc.get_attribute("href") or ""
+                role = loc.get_attribute("role") or ""
+            except Exception:
+                href, role = "", ""
+            items.append({
+                "selector": self._stable_selector(loc),
+                "text": text,
+                "tag": tag,
+                "href": href,
+                "role": role,
+                "visible": visible,
+            })
+        return items
+
+    def _stable_selector(self, loc) -> str:
+        """尽量返回稳定唯一的选择器（id > data-* > 空）。"""
+        try:
+            el_id = loc.get_attribute("id")
+            if el_id:
+                return f"#{el_id}"
+            for attr in ("data-testid", "data-view", "name"):
+                val = loc.get_attribute(attr)
+                if val:
+                    return f"[{attr}='{val}']"
+        except Exception:
+            pass
+        return ""
+
     def collect_runtime(self) -> RuntimeSignals:
         return self._signals
 
