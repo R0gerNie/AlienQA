@@ -3,6 +3,18 @@ from .client import LLMClient
 from .models import Role
 
 
+def _format_technical(technical: dict) -> str:
+    """把运行时技术信号格式化成可读文本（截断列表长度）。"""
+    if not technical:
+        return "无"
+    lines = []
+    for key, value in technical.items():
+        if isinstance(value, list):
+            value = "; ".join(str(x) for x in value[:10])
+        lines.append(f"- {key}: {value}")
+    return "\n".join(lines)
+
+
 class LlmRoles:
     def __init__(self, client: LLMClient):
         self.client = client
@@ -52,14 +64,24 @@ class LlmRoles:
                     results.add(line)
         return sorted(results)
 
-    # C 盲判（低温度，视觉）：给 08
-    def judge(self, action_desc: str, expected: str, before_image, after_image) -> str:
+    # C 盲判（低温度，视觉，结构化输出）：给 08
+    def judge(self, action_desc: str, expected: str, before_image, after_image,
+              technical: dict | None = None, repair: bool = False) -> str:
         text = (
             f"你刚刚对界面执行了操作：{action_desc}。\n"
             "第一张图是执行前，第二张图是执行后。\n"
-            f"作为一个普通用户，你原本预期会发生：{expected}。\n"
-            "请盲判：实际结果是否符合预期？如果不符合，指出哪里不对劲、有多严重"
-            "（high/medium/low）、属于哪类问题（技术故障/业务逻辑不清晰/缺少反馈/误导文案/其他）。\n"
-            "只看图，不要为产品找借口。"
+            "作为一个普通用户，你原本预期会发生下面这些事：\n"
+            f"{expected}\n"
+            "请盲判：实际结果是否符合这些预期？\n"
+            "如果全部符合，只输出：{\"matched\": true}\n"
+            "如果有任何一条不符，挑出最严重的一条，只输出一个 JSON 对象（不要 markdown、不要多余文字）：\n"
+            '{"matched": false, "expectation": "哪条预期没被满足", "observation": "实际看到什么", '
+            '"level": "high|medium|low", "reasoning": "一个普通用户为什么会这么想"}\n'
+            "只看图，不要为产品找借口；不要用 'bug' 这个词定性，不要引用 PRD 或实现细节。"
         )
+        if technical:
+            text += ("\n\n运行时技术信号（仅作旁证，不要据此改变'普通用户直觉'）:\n"
+                     + _format_technical(technical))
+        if repair:
+            text += "\n\n注意：你上一次的输出不是合法 JSON。这次只输出一个合法 JSON 对象。"
         return self.client.complete_vision(Role.JUDGE, text, [before_image, after_image]).text

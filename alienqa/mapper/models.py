@@ -5,9 +5,9 @@ LLM 输出里多出来的字段（如 bugs/issues/conclusion）一律丢弃。
 """
 from __future__ import annotations
 
-import json
-import re
 from dataclasses import dataclass, field
+
+from ..llm.jsonutil import loads_object
 
 
 def _as_str_list(value) -> list:
@@ -87,22 +87,4 @@ class ProductMap:
 
         失败抛 ValueError，由调用方决定是否重试。
         """
-        data = json.loads(_extract_json_object(text))
-        if not isinstance(data, dict):
-            raise ValueError("JSON 顶层不是对象")
-        return cls.from_dict(data)
-
-
-def _extract_json_object(text: str) -> str:
-    """从 LLM 输出里抠出最外层 JSON 对象字符串。"""
-    t = (text or "").strip()
-    # 去掉 ```json ... ``` 围栏
-    fence = re.match(r"^```[a-zA-Z]*\s*", t)
-    if fence:
-        t = t[fence.end():]
-        t = re.sub(r"\s*```\s*$", "", t)
-    start = t.find("{")
-    end = t.rfind("}")
-    if start == -1 or end == -1 or end <= start:
-        raise ValueError("未找到 JSON 对象")
-    return t[start:end + 1]
+        return cls.from_dict(loads_object(text))
