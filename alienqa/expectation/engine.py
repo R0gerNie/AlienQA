@@ -4,7 +4,7 @@
 """
 from ..context.models import ExplorerContext
 from ..llm import LLMClient, LlmRoles
-from .models import Expectation, ExpectationMismatch, Observation, PageInfo, parse_mismatch
+from .models import Expectation, Observation, PageInfo, parse_mismatches
 
 
 class ExpectationEngine:
@@ -23,14 +23,14 @@ class ExpectationEngine:
         )
         return [Expectation(text=t) for t in texts]
 
-    def judge(self, expectations, observation) -> ExpectationMismatch | None:
-        """逐条预期比对观察，返回最严重 mismatch；全匹配或不可判定返回 None。"""
+    def judge(self, expectations, observation) -> list:
+        """逐条预期比对观察，返回全部 mismatch；全匹配或不可判定返回空列表。"""
         expected_texts = [getattr(e, "text", "") for e in expectations if getattr(e, "text", "")]
         if not expected_texts:
-            return None
+            return []
         obs = _coerce_observation(observation)
         if obs is None:
-            return None
+            return []
         expected = "\n".join(f"- {t}" for t in expected_texts)
         for repair in (False, True):
             raw = self.roles.judge(
@@ -42,10 +42,10 @@ class ExpectationEngine:
                 repair=repair,
             )
             try:
-                return parse_mismatch(raw)
+                return parse_mismatches(raw)
             except (ValueError, TypeError):
                 continue
-        return None
+        return []
 
 
 def _compose_page_text(ctx, page_info) -> str:

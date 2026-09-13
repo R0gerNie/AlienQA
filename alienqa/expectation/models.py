@@ -56,9 +56,8 @@ class ExpectationMismatch:
         )
 
 
-def parse_mismatch(text: str) -> ExpectationMismatch | None:
-    """解析 judge 的 JSON 输出；matched=true 时返回 None。失败抛 ValueError。"""
+def parse_mismatches(text: str) -> list:
+    """解析 judge 的 JSON 输出为 mismatch 列表；空列表=全部符合。失败抛 ValueError。"""
     data = loads_object(text)
-    if data.get("matched") in (True, "true", "True"):
-        return None
-    return ExpectationMismatch.from_dict(data)
+    items = data.get("mismatches") or []
+    return [ExpectationMismatch.from_dict(d) for d in items if isinstance(d, dict)]

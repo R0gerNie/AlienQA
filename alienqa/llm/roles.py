@@ -76,11 +76,13 @@ class LlmRoles:
             "第一张图是执行前，第二张图是执行后。\n"
             "作为一个普通用户，你原本预期会发生下面这些事：\n"
             f"{expected}\n"
-            "请盲判：实际结果是否符合这些预期？\n"
-            "如果全部符合，只输出：{\"matched\": true}\n"
-            "如果有任何一条不符，挑出最严重的一条，只输出一个 JSON 对象（不要 markdown、不要多余文字）：\n"
-            '{"matched": false, "expectation": "哪条预期没被满足", "observation": "实际看到什么", '
-            '"level": "high|medium|low", "reasoning": "一个普通用户为什么会这么想"}\n'
+            "请逐条盲判：每条预期，实际结果是否符合？\n"
+            "把所有'不符合'的条目都列出来（一条都不要漏）；如果全部符合，输出空列表。\n"
+            "只输出一个 JSON 对象（不要 markdown、不要多余文字）：\n"
+            '{"mismatches": [{"expectation": "哪条预期没被满足", "observation": "实际看到什么", '
+            '"level": "high|medium|low", "reasoning": "一个普通用户为什么会这么想"}]}\n'
+            "特别提醒：如果某个东西'看起来像按钮/可点击'，但你判断它点击后毫无反应"
+            "（哪怕它可能本来就不是按钮），这也算一条不符合预期，要列进 mismatches。\n"
             "只看图，不要为产品找借口；不要用 'bug' 这个词定性，不要引用 PRD 或实现细节。"
         )
         if technical:

@@ -91,36 +91,36 @@ def test_expect_samples_and_dedup(engine, fake_litellm):
 
 def test_judge_returns_mismatch(engine, fake_litellm):
     fake_litellm.texts.append(
-        '{"matched": false, "expectation": "点保存应有提示", "observation": "无任何反馈",'
-        ' "level": "high", "reasoning": "保存类操作应有成功提示"}'
+        '{"mismatches": [{"expectation": "点保存应有提示", "observation": "无任何反馈",'
+        ' "level": "high", "reasoning": "保存类操作应有成功提示"}]}'
     )
     obs = Observation(before_image=b"a", after_image=b"b", action_desc="click 保存")
     m = engine.judge([Expectation(text="点保存应有提示")], obs)
-    assert m is not None
-    assert m.level == MismatchLevel.HIGH
-    assert m.expectation == "点保存应有提示"
-    assert m.observation == "无任何反馈"
+    assert len(m) == 1
+    assert m[0].level == MismatchLevel.HIGH
+    assert m[0].expectation == "点保存应有提示"
+    assert m[0].observation == "无任何反馈"
 
 
-def test_judge_returns_none_when_matched(engine, fake_litellm):
-    fake_litellm.texts.append('{"matched": true}')
+def test_judge_returns_empty_when_matched(engine, fake_litellm):
+    fake_litellm.texts.append('{"mismatches": []}')
     m = engine.judge([Expectation(text="x")], Observation(before_image=b"a", after_image=b"b"))
-    assert m is None
+    assert m == []
 
 
 def test_judge_drops_bug_field(engine, fake_litellm):
     fake_litellm.texts.append(
-        '{"matched": false, "level": "low", "bug": "这就是个 bug",'
-        ' "expectation": "x", "observation": "y"}'
+        '{"mismatches": [{"level": "low", "bug": "这就是个 bug",'
+        ' "expectation": "x", "observation": "y"}]}'
     )
     m = engine.judge([Expectation(text="x")], Observation(before_image=b"a", after_image=b"b"))
-    assert m is not None
-    assert not hasattr(m, "bug")
-    assert m.level == MismatchLevel.LOW
+    assert len(m) == 1
+    assert not hasattr(m[0], "bug")
+    assert m[0].level == MismatchLevel.LOW
 
 
 def test_judge_technical_signals_in_prompt(engine, fake_litellm):
-    fake_litellm.texts.append('{"matched": true}')
+    fake_litellm.texts.append('{"mismatches": []}')
     obs = Observation(
         before_image=b"a", after_image=b"b", action_desc="click 保存",
         runtime=RuntimeObservation(console_errors=["TypeError: x"], network_failures=["GET /api -> 500"]),
@@ -135,26 +135,26 @@ def test_judge_technical_signals_in_prompt(engine, fake_litellm):
 def test_judge_retries_on_bad_json(engine, fake_litellm):
     fake_litellm.texts.extend([
         "not json at all",
-        '{"matched": false, "expectation": "x", "observation": "y",'
-        ' "level": "medium", "reasoning": "r"}',
+        '{"mismatches": [{"expectation": "x", "observation": "y",'
+        ' "level": "medium", "reasoning": "r"}]}',
     ])
     m = engine.judge([Expectation(text="x")], Observation(before_image=b"a", after_image=b"b"))
-    assert m is not None
-    assert m.level == MismatchLevel.MEDIUM
+    assert len(m) == 1
+    assert m[0].level == MismatchLevel.MEDIUM
     assert len(fake_litellm.calls) == 2
     assert "不是合法 JSON" in _prompt(fake_litellm.calls[1])
 
 
-def test_judge_returns_none_when_all_invalid(engine, fake_litellm):
+def test_judge_returns_empty_when_all_invalid(engine, fake_litellm):
     fake_litellm.texts.extend(["bad1", "bad2"])
     m = engine.judge([Expectation(text="x")], Observation(before_image=b"a", after_image=b"b"))
-    assert m is None
+    assert m == []
     assert len(fake_litellm.calls) == 2
 
 
 def test_judge_empty_expectations_no_call(engine, fake_litellm):
     m = engine.judge([], Observation(before_image=b"a", after_image=b"b"))
-    assert m is None
+    assert m == []
     assert fake_litellm.calls == []
 
 
@@ -164,10 +164,10 @@ def test_expect_then_judge_end_to_end(engine, fake_litellm):
     fake_litellm.texts.extend([
         "- 点保存应有提示",   # expect 采样第 1 次
         "- 点保存应有提示",   # expect 采样第 2 次（重复，去重后仍 1 条）
-        '{"matched": false, "expectation": "点保存应有提示", "observation": "无反馈",'
-        ' "level": "high", "reasoning": "r"}',  # judge
+        '{"mismatches": [{"expectation": "点保存应有提示", "observation": "无反馈",'
+        ' "level": "high", "reasoning": "r"}]}',  # judge
     ])
     exps = engine.expect(_ctx(), PageInfo(route="/orders"))
     assert [e.text for e in exps] == ["点保存应有提示"]
     m = engine.judge(exps, Observation(before_image=b"a", after_image=b"b", action_desc="click 保存"))
-    assert m is not None and m.level == MismatchLevel.HIGH
+    assert len(m) == 1 and m[0].level == MismatchLevel.HIGH
