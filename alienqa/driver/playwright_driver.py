@@ -195,6 +195,19 @@ class PlaywrightDriver(BaseDriver):
     def collect_runtime(self) -> RuntimeSignals:
         return self._signals
 
+    def snapshot_runtime(self) -> RuntimeSignals:
+        """当前运行时信号的快照（用于 per-action 增量 diff）。"""
+        return RuntimeSignals(
+            console_errors=list(self._signals.console_errors),
+            page_errors=list(self._signals.page_errors),
+            network_failures=list(self._signals.network_failures),
+            http_errors=list(self._signals.http_errors),
+        )
+
+    def clear_runtime(self) -> None:
+        """清空运行时信号累积（每次动作前调用，采集单动作增量）。"""
+        self._signals = RuntimeSignals()
+
     def replay_data(self) -> dict:
         """回放所需的完整上下文（为 Replay Engine 铺路）。"""
         return {

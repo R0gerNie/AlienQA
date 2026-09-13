@@ -34,11 +34,11 @@ class ExpectationEngine:
         expected = "\n".join(f"- {t}" for t in expected_texts)
         for repair in (False, True):
             raw = self.roles.judge(
-                obs.action_desc,
+                getattr(obs, "action_desc", "") or "",
                 expected,
-                obs.before_image,
-                obs.after_image,
-                technical=obs.technical,
+                getattr(obs, "before_image", None),
+                getattr(obs, "after_image", None),
+                technical=getattr(obs, "technical", None) or {},
                 repair=repair,
             )
             try:
@@ -61,11 +61,7 @@ def _compose_page_text(ctx, page_info) -> str:
 
 
 def _coerce_observation(observation) -> Observation | None:
+    """07 的 canonical Observation（或任何带 before_image/after_image/action_desc/technical 的对象）。"""
     if observation is None:
         return None
-    return Observation(
-        before_image=getattr(observation, "before_image", None),
-        after_image=getattr(observation, "after_image", None),
-        action_desc=getattr(observation, "action_desc", "") or "",
-        technical=getattr(observation, "technical", None) or {},
-    )
+    return observation

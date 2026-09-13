@@ -194,6 +194,7 @@ def test_load_config_project_yaml():
 
     root = pathlib.Path(__file__).resolve().parents[1]
     cfg = load_config(root / "config" / "config.yaml")
-    assert set(cfg.roles) == {"gist", "expectation", "judge"}
+    assert set(cfg.roles) == {"gist", "expectation", "judge", "visual"}
     assert cfg.role(Role.JUDGE).model == "gpt-4o"
     assert cfg.role(Role.EXPECTATION).temperature == 0.8
+    assert cfg.role(Role.VISUAL).temperature == 0.1

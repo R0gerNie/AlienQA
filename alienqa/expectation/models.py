@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from ..llm.jsonutil import loads_object
+from ..observation.models import Observation  # 07 的 canonical Observation，08 duck-typing 消费
 
 
 class MismatchLevel(str, Enum):
@@ -33,19 +34,6 @@ class PageInfo:
 
     route: str = ""
     elements: list = field(default_factory=list)  # list[str]，如 "按钮「保存」"
-
-
-@dataclass
-class Observation:
-    """07 Observation 的最小 duck-typed 契约：07 将来产出同形状对象即可。
-
-    判定只依赖这四个字段（action + before/after + 技术信号），不含源码/PRD。
-    """
-
-    before_image: bytes | None = None
-    after_image: bytes | None = None
-    action_desc: str = ""
-    technical: dict = field(default_factory=dict)
 
 
 @dataclass

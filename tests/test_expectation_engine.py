@@ -6,6 +6,7 @@ import pytest
 from alienqa.context import ExplorerContext
 from alienqa.expectation import Expectation, ExpectationEngine, MismatchLevel, Observation, PageInfo
 from alienqa.llm import LLMClient, LLMConfig, RoleConfig
+from alienqa.observation import RuntimeObservation
 
 
 class _FakeLiteLLM:
@@ -122,7 +123,7 @@ def test_judge_technical_signals_in_prompt(engine, fake_litellm):
     fake_litellm.texts.append('{"matched": true}')
     obs = Observation(
         before_image=b"a", after_image=b"b", action_desc="click 保存",
-        technical={"console_errors": ["TypeError: x"], "network_failures": ["GET /api -> 500"]},
+        runtime=RuntimeObservation(console_errors=["TypeError: x"], network_failures=["GET /api -> 500"]),
     )
     engine.judge([Expectation(text="x")], obs)
     prompt = _prompt(fake_litellm.calls[0])

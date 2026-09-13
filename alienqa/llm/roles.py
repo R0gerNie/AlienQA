@@ -4,13 +4,17 @@ from .models import Role
 
 
 def _format_technical(technical: dict) -> str:
-    """把运行时技术信号格式化成可读文本（截断列表长度）。"""
+    """把运行时技术信号格式化成可读文本（截断列表长度，跳过空值）。"""
     if not technical:
         return "无"
     lines = []
     for key, value in technical.items():
         if isinstance(value, list):
+            if not value:
+                continue
             value = "; ".join(str(x) for x in value[:10])
+        elif value in (None, "", {}, []):
+            continue
         lines.append(f"- {key}: {value}")
     return "\n".join(lines)
 
@@ -85,3 +89,18 @@ class LlmRoles:
         if repair:
             text += "\n\n注意：你上一次的输出不是合法 JSON。这次只输出一个合法 JSON 对象。"
         return self.client.complete_vision(Role.JUDGE, text, [before_image, after_image]).text
+
+    # D 视觉观察（低温度，视觉，结构化输出）：给 07
+    def observe_visual(self, before_image, after_image, action_desc: str) -> str:
+        text = (
+            f"你刚刚对界面执行了操作：{action_desc}。\n"
+            "第一张图是执行前，第二张图是执行后。\n"
+            "请客观描述两张图之间的视觉变化：只描述'人眼看到什么'，"
+            "不要评判好坏、不要猜测原因、不要定性 bug。\n"
+            "严格输出一个 JSON 对象（不要 markdown、不要多余文字）：\n"
+            '{"changes": ["从标签里选"], "summary": "一句话描述变化"}\n'
+            "changes 只从这些标签里选：modal_opened / modal_closed / text_changed / "
+            "loading_persisted / button_state_changed / page_body_disappeared / "
+            "blank_screen / navigation / no_change / other"
+        )
+        return self.client.complete_vision(Role.VISUAL, text, [before_image, after_image]).text
