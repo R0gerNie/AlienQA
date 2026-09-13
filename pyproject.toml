@@ -1,0 +1,15 @@
+[project]
+name = "alienqa"
+version = "0.1.0"
+description = "AlienQA：让没有经过教育的内测用户（裸 LLM）从外部上帝视角自动探索前端，产出疑似问题证据的测试工具"
+readme = "README.md"
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

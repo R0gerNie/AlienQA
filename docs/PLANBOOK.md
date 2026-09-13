@@ -226,7 +226,10 @@ AlienQA/
 ├── .gitignore
 ├── pyproject.toml
 ├── docs/                       # 工程文档（仅放文档）
-│   ├── PLANBOOK.md             # 本文件
+│   ├── PLANBOOK.md             # 总体 planbook（愿景/技术选型/架构）
+│   ├── planbooks/              # 13 个模块 planbook + 总索引
+│   │   ├── README.md           # 总 planbook（索引与模块关联）
+│   │   └── 01..13-*.md         # 各模块 planbook
 │   └── engineering/
 │       ├── governance.md       # Git 软件工程治理
 │       └── commercialization.md# 付费接口预留设计
