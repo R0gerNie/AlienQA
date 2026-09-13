@@ -136,3 +136,62 @@ def test_investigator_isolated_from_explorer():
     inv = InvestigatorContext(source="RefundModal.tsx", dom="<div/>")
     assert inv.source == "RefundModal.tsx"
     assert not hasattr(ExplorerContext(), "source")
+
+
+# ---- 11b 黑盒：无源码时调查只依赖 DOM/控制台/网络 ----
+
+def test_retrieve_source_empty_visible_files_returns_empty():
+    project = Project(framework="browser", base_url="http://x")  # visible_files=[] 默认
+    assert retrieve_source(project, _issue(), [_evidence()]) == ""
+
+
+def test_build_context_blackbox_source_empty_no_throw():
+    project = Project(framework="browser", base_url="http://x")
+    ctx = build_investigator_context(project, _issue(), [_evidence()])  # driver=None
+    assert ctx.source == ""
+    assert "[源码]" not in ctx.to_text()
+    assert "申请退款" in ctx.action_trace  # 动作轨迹照常可用
+
+
+def test_build_context_blackbox_prefers_action_selector_dom():
+    class _Driver:
+        def dom(self, selector=None):
+            if selector == "#app":
+                return "<div id='app'>提交按钮</div>"
+            return "<html><body>huge full page</body></html>"
+
+    project = Project(framework="browser", base_url="http://x")
+    ev = Evidence(id="EV-001", action={"type": "click", "target": {"selector": "#app"}}, replay={})
+    ctx = build_investigator_context(project, _issue(), [ev], driver=_Driver())
+    assert ctx.source == ""
+    assert "提交按钮" in ctx.dom
+    assert "huge full page" not in ctx.dom
+
+
+def test_investigate_issue_blackbox_console_error(agent):
+    inv_agent, fake = agent
+    project = Project(framework="browser", base_url="http://x")
+    ev = Evidence(
+        id="EV-001",
+        expectation="点击提交后应有反应",
+        action={"type": "click", "target": {"selector": "#app button.submit"}},
+        replay={
+            "url": "http://x/",
+            "action_sequence": [{"type": "click", "target": {"selector": "#app button.submit"}}],
+            "console": ["Uncaught TypeError: submit is not a function"],
+            "network": [],
+        },
+    )
+    fake.texts.append(
+        '{"root_cause_hypothesis": "点击提交触发 Uncaught TypeError，DOM 未更新",'
+        ' "reproduction_steps": ["1. 打开页面", "2. 点击提交按钮"],'
+        ' "technical_evidence": {"stack_trace": "Uncaught TypeError: submit is not a function"},'
+        ' "affected_components": ["#app"]}'
+    )
+    inv = inv_agent.investigate_issue(project, _issue(), [ev])
+    assert "TypeError" in inv.root_cause_hypothesis
+    assert len(inv.reproduction_steps) >= 1
+    prompt = fake.calls[0]["messages"][0]["content"]
+    assert "[源码]" not in prompt           # 黑盒：源码通道关闭
+    assert "[控制台]" in prompt
+    assert "Uncaught TypeError" in prompt

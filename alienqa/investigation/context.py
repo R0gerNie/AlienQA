@@ -11,15 +11,37 @@ def build_investigator_context(project, issue, evidences, driver=None) -> Invest
     if project is not None:
         ctx.source = retrieve_source(project, issue, evidences)
     if driver is not None:
-        try:
-            ctx.dom = (driver.dom() or "")[:5000]
-        except Exception:  # noqa: BLE001
-            ctx.dom = ""
+        ctx.dom = _dom_channel(driver, ctx.source, evidences)
     ctx.stack_trace = _stack_trace(evidences)
     ctx.console = _signals(evidences, "console")
     ctx.network = _signals(evidences, "network")
     ctx.action_trace = _action_trace(evidences)
     return ctx
+
+
+def _dom_channel(driver, source: str, evidences) -> str:
+    """11b：黑盒（无源码）时优先取问题动作 selector 附近的 DOM 子树，控制 prompt 长度。"""
+    try:
+        selector = ""
+        if not source:
+            selector = _first_action_selector(evidences)
+        if selector:
+            subtree = driver.dom(selector)
+            if subtree:
+                return subtree[:5000]
+        return (driver.dom() or "")[:5000]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _first_action_selector(evidences) -> str:
+    for ev in evidences or []:
+        action = getattr(ev, "action", None) or {}
+        if isinstance(action, dict):
+            sel = (action.get("target") or {}).get("selector")
+            if sel:
+                return str(sel)
+    return ""
 
 
 def _signals(evidences, key) -> str:

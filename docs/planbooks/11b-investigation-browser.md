@@ -60,7 +60,7 @@ class InvestigationAgent:
 ## 7. 实现要点
 
 - `build_investigator_context` 里 `retrieve_source(project, ...)` 对空 `visible_files` 返回 `""` 即可（已满足）。
-- 可选增强：黑盒下把 `driver.dom()` 截断到问题相关子树（按 action 的 selector 附近裁剪），控制 prompt 长度。
+- **已实现增强**：黑盒（`source` 为空）时，`_dom_channel` 优先取问题动作 selector 附近的 DOM 子树（`driver.dom(selector)`），再回退整页 DOM 截断 5000 字符——控制 prompt 长度且聚焦问题区域。
 
 ## 8. 验收标准
 

@@ -42,6 +42,10 @@ secrets/
 *.pem
 session.json
 
+# 本地临时输出
+_vite_out.txt
+_reg.txt
+
 # 系统
 .DS_Store
 Thumbs.db

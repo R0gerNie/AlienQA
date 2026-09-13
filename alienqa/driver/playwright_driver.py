@@ -159,10 +159,22 @@ class PlaywrightDriver(BaseDriver):
     def visible_text(self) -> str:
         return self._page.locator("body").inner_text()
 
-    def dom(self) -> str:
-        """当前页面完整 HTML（Investigator 专用，Explorer 不可见）。"""
+    def dom(self, selector: str | None = None) -> str:
+        """当前页面 HTML（Investigator 专用，Explorer 不可见）。
+
+        selector 给定则只取该元素的 outerHTML（11b 黑盒裁剪问题相关子树用），
+        定位失败或元素不存在时返回空串。
+        """
         if self._page is None:
             return ""
+        if selector:
+            try:
+                loc = self._page.locator(selector).first
+                if loc.count() == 0:
+                    return ""
+                return loc.evaluate("el => el.outerHTML")
+            except Exception:  # noqa: BLE001
+                return ""
         return self._page.content()
 
     def interactive_elements(self) -> list:
