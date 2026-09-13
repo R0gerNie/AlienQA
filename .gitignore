@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 构建与分发
+build/
+dist/
+*.whl
+
+# 运行产物（不入库）
+artifacts/
+reports/
+evidence.db
+*.sqlite3
+
+# IDE / 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 密钥与本地配置
+.env
+.env.*
+config.local.yaml
+secrets/
+*.key
+*.pem
+
+# 系统
+.DS_Store
+Thumbs.db
