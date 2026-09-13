@@ -37,6 +37,7 @@ class ProjectLoader:
         routes = extract_routes(root, framework, manifest)
         visible_files, audit = select_visible_files(root, framework, manifest)
         return Project(
+            root=str(root),
             input_type=input_type,
             framework=framework,
             start=start,

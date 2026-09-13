@@ -17,6 +17,22 @@ class LlmRoles:
         )
         return self.client.complete(Role.GIST, [{"role": "user", "content": prompt}]).text
 
+    # A2 产品地图结构化提取（低温度，复用 GIST）：给 02
+    def map_product(self, gist: str, surface_text: str, repair: bool = False) -> str:
+        prompt = (
+            "你是产品观察员。根据下面的产品主旨与前端表面结构，画一张'产品地图'。\n"
+            "只概括这个产品有哪些功能区域；绝对不要判断它好不好、有没有 bug，"
+            "不要输出任何'疑似问题/测试结论/改进建议'字段。\n"
+            "严格输出一个 JSON 对象（不要 markdown 围栏、不要多余文字），结构如下：\n"
+            '{"areas":[{"name":"区域名","pages":["/path"],"actions":["动作"],'
+            '"entities":["实体"],"roles":["角色"],"states":["状态"]}],'
+            '"relations":[{"from":"/a","to":"/b","kind":"navigate"}]}\n\n'
+            f"产品主旨:\n{gist[:3000]}\n\n前端表面结构:\n{surface_text[:8000]}"
+        )
+        if repair:
+            prompt += "\n\n注意：你上一次的输出不是合法 JSON。这次只输出一个合法 JSON 对象。"
+        return self.client.complete(Role.GIST, [{"role": "user", "content": prompt}]).text
+
     # B 预期生成（高温度，采样取并集）：给 08
     def generate_expectations(self, gist: str, page_text: str, samples: int = 2) -> list:
         prompt = (

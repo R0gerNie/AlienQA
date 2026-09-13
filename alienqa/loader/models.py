@@ -46,6 +46,7 @@ class FrontendApp:
 class Project:
     """Loader 的输出：项目事实 + 前端可见表面。"""
 
+    root: str = ""  # 仓库根目录（绝对路径字符串），供下游按路径读文件
     input_type: str = "unknown"
     framework: str = "Unknown"
     start: str = ""
