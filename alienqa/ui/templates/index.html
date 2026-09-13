@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>运行扫描</h1>
+<form id="run-form">
+  <label>项目路径</label>
+  <div style="display:flex; gap:.5em; max-width:560px;">
+    <input type="text" id="project_path" name="project_path" value="{{ settings.project_path }}" placeholder="例如 d:\my-project" style="flex:1;">
+    <button type="button" class="secondary" onclick="openBrowser()">浏览…</button>
+  </div>
+
+  <label>测试单元（单元级测试预留，本次暂不参与执行）</label>
+  <textarea id="unit" name="unit" rows="2" placeholder="本次要测哪个单元 / 页面 / 功能（后续设计）">{{ settings.unit }}</textarea>
+
+  <label>入口文件（静态项目默认 index.html）</label>
+  <input type="text" id="entry" name="entry" value="index.html">
+
+  <div style="margin-top:1em;"><button type="submit">开始扫描</button></div>
+</form>
+<div id="status" style="margin-top:1em;"></div>
+
+<h2>最近扫描</h2>
+<table>
+  <tr><th>扫描目录</th><th>项目</th><th>状态</th><th>证据</th><th>Issue</th><th></th></tr>
+  {% for r in recent %}
+  <tr>
+    <td><code>{{ r.id }}</code></td>
+    <td>{{ r.project_path or '—' }}</td>
+    <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
+    <td>{{ r.evidence_count }}</td>
+    <td>{{ r.issue_count }}</td>
+    <td><a href="/runs/{{ r.id }}">查看</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">暂无扫描记录</td></tr>
+  {% endfor %}
+</table>
+
+<div id="browse-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.3); z-index:10;">
+  <div style="background:#fff; margin:3rem auto; width:640px; max-height:72vh; overflow:auto; border-radius:8px; padding:1em;">
+    <h3 style="margin-top:0;">选择目录 <span id="browse-close" style="float:right; cursor:pointer;">✕</span></h3>
+    <div id="browse-path" class="muted" style="margin-bottom:.5em;"></div>
+    <ul id="browse-list" style="list-style:none; padding:0; margin:0;"></ul>
+    <div style="margin-top:.8em;">
+      <button type="button" class="secondary" onclick="browseUp()">上一级</button>
+      <button type="button" onclick="selectCurrent()">选择当前目录</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentPath = "";
+function openBrowser() { document.getElementById('browse-modal').style.display = 'block'; browse(''); }
+document.getElementById('browse-close').onclick = () => document.getElementById('browse-modal').style.display = 'none';
+async function browse(path) {
+  const r = await fetch('/api/browse?path=' + encodeURIComponent(path));
+  const d = await r.json();
+  currentPath = d.path;
+  document.getElementById('browse-path').textContent = d.path || '（磁盘根）';
+  const ul = document.getElementById('browse-list');
+  ul.innerHTML = '';
+  for (const e of d.entries) {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.textContent = e.is_dir ? '📁 ' + e.name : '· ' + e.name;
+    a.href = '#';
+    a.style.cursor = 'pointer';
+    if (e.is_dir) a.onclick = (ev) => { ev.preventDefault(); browse(e.path); };
+    else a.onclick = (ev) => ev.preventDefault();
+    li.appendChild(a);
+    ul.appendChild(li);
+  }
+}
+function browseUp() {
+  fetch('/api/browse?path=' + encodeURIComponent(currentPath)).then(r => r.json()).then(d => {
+    if (d.parent !== null) browse(d.parent); else browse('');
+  });
+}
+function selectCurrent() {
+  if (currentPath) document.getElementById('project_path').value = currentPath;
+  document.getElementById('browse-modal').style.display = 'none';
+}
+document.getElementById('run-form').onsubmit = async function (ev) {
+  ev.preventDefault();
+  const body = {
+    project_path: document.getElementById('project_path').value.trim(),
+    unit: document.getElementById('unit').value.trim(),
+    entry: document.getElementById('entry').value.trim() || 'index.html',
+  };
+  const st = document.getElementById('status');
+  st.innerHTML = '<span class="badge running">启动中…</span>';
+  const r = await fetch('/api/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const d = await r.json();
+  if (!r.ok) { st.innerHTML = '<span class="badge error">' + (d.error || '失败') + '</span>'; return; }
+  poll(d.run_id);
+};
+function poll(runId) {
+  const st = document.getElementById('status');
+  fetch('/api/run/' + runId).then(r => r.json()).then(d => {
+    if (d.status === 'running') {
+      st.innerHTML = '<span class="badge running">扫描中…（完成后自动生成报告）</span>';
+      setTimeout(() => poll(runId), 3000);
+    } else if (d.status === 'done') {
+      st.innerHTML = '<span class="badge done">完成：证据 ' + d.evidence_count + '，Issue ' + d.issue_count +
+        '</span> <a href="/runs/' + runId + '/report">查看报告</a>';
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      st.innerHTML = '<span class="badge error">失败：' + (d.error || '') + '</span>';
+    }
+  });
+}
+</script>
+{% endblock %}

@@ -195,6 +195,10 @@ def test_load_config_project_yaml():
     root = pathlib.Path(__file__).resolve().parents[1]
     cfg = load_config(root / "config" / "config.yaml")
     assert set(cfg.roles) == {"gist", "expectation", "judge", "visual", "investigator", "reporter"}
-    assert cfg.role(Role.JUDGE).model == "gpt-4o"
+    assert cfg.role(Role.JUDGE).model == "dashscope/qwen-vl-plus"
+    assert cfg.role(Role.VISUAL).model == "dashscope/qwen-vl-plus"
+    assert cfg.role(Role.GIST).model == "deepseek/deepseek-chat"
+    assert cfg.role(Role.INVESTIGATOR).model == "deepseek/deepseek-chat"
+    assert cfg.role(Role.REPORTER).model == "deepseek/deepseek-chat"
     assert cfg.role(Role.EXPECTATION).temperature == 0.8
     assert cfg.role(Role.VISUAL).temperature == 0.1

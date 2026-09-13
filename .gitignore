@@ -20,8 +20,10 @@ dist/
 # 运行产物（不入库）
 artifacts/
 reports/
+runs/
 evidence.db
 *.sqlite3
+report.html
 
 # 第三方基线仓库（克隆用于测试，不入库）
 baselines/

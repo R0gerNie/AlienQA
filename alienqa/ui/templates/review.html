@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>审核 <code>{{ run_id }}</code></h1>
+<p class="muted">项目：{{ rec.project_path }} · 测试单元：{{ rec.unit or '—' }}</p>
+<div class="toolbar">
+  <a href="/runs/{{ run_id }}/review?sort=severity" {% if sort == 'severity' %}class="active"{% endif %}>按严重度排序</a>
+  <a href="/runs/{{ run_id }}/review?sort=alphabetical" {% if sort == 'alphabetical' %}class="active"{% endif %}>按字母序排序</a>
+  <a href="/runs/{{ run_id }}/report">生成 / 查看报告</a>
+  <a href="/runs/{{ run_id }}">← 返回</a>
+</div>
+<table>
+  <tr><th>ID</th><th>严重度</th><th>预期</th><th>采信 / 不采信</th><th>状态</th></tr>
+  {% for r in rows %}
+  <tr>
+    <td><code>{{ r.id }}</code></td>
+    <td>{{ r.severity }}</td>
+    <td>{{ r.expectation }}</td>
+    <td class="switch">
+      <label class="toggle">
+        <input type="checkbox" data-id="{{ r.id }}" {% if r.accepted %}checked{% endif %}>
+        <span class="slider"></span>
+      </label>
+      <span class="sw-label {% if r.accepted %}on{% else %}off{% endif %}" data-label="{{ r.id }}">
+        {{ '采信' if r.accepted else '不采信' }}
+      </span>
+    </td>
+    <td>{{ r.decision }}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="muted">暂无证据</td></tr>
+  {% endfor %}
+</table>
+<script>
+document.querySelectorAll('.toggle input').forEach(function (cb) {
+  cb.addEventListener('change', function () {
+    var label = document.querySelector('.sw-label[data-label="' + cb.dataset.id + '"]');
+    fetch('/runs/{{ run_id }}/decide', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({evidence_id: cb.dataset.id, decision: cb.checked ? 'confirmed' : 'rejected'})
+    }).then(function (r) {
+      if (r.ok) {
+        label.textContent = cb.checked ? '采信' : '不采信';
+        label.className = 'sw-label ' + (cb.checked ? 'on' : 'off');
+      }
+    });
+  });
+});
+</script>
+{% endblock %}

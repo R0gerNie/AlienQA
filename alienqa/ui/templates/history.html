@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>历史项目</h1>
+<p class="muted">每次扫描在磁盘上对应一个目录（<code>runs/</code>）。</p>
+<table>
+  <tr><th>扫描目录</th><th>项目路径</th><th>测试单元</th><th>状态</th><th>证据</th><th>Issue</th><th></th></tr>
+  {% for r in runs %}
+  <tr>
+    <td><code>{{ r.id }}</code></td>
+    <td>{{ r.project_path or '—' }}</td>
+    <td>{{ r.unit or '—' }}</td>
+    <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
+    <td>{{ r.evidence_count }}</td>
+    <td>{{ r.issue_count }}</td>
+    <td><a href="/runs/{{ r.id }}">打开</a></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">暂无历史扫描</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

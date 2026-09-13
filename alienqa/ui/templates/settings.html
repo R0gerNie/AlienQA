@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>设置（密钥）</h1>
+<p class="muted">
+  密钥保存在 <code>config.local.yaml</code>（已 gitignore，不入库）。同 provider 的模型共用一把 key；
+  不同 provider 允许填相同值。留空表示沿用环境变量 / 本机 key 文件。
+</p>
+{% if saved %}<p><span class="badge done">已保存</span></p>{% endif %}
+<form method="post">
+  {% for p in providers %}
+  <label>{{ p }} 密钥</label>
+  <input type="password" name="key_{{ p }}" value="{{ settings.llm_keys.get(p, '') }}" placeholder="sk-...">
+  {% endfor %}
+  {% if not providers %}<p class="muted">config.yaml 中未配置任何模型。</p>{% endif %}
+
+  <label>默认项目路径</label>
+  <input type="text" name="project_path" value="{{ settings.project_path }}">
+
+  <label>默认测试单元</label>
+  <input type="text" name="unit" value="{{ settings.unit }}">
+
+  <div style="margin-top:1em;"><button type="submit">保存</button></div>
+</form>
+{% endblock %}

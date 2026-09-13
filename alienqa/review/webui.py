@@ -1,4 +1,6 @@
 """Flask 审核前端：evidence 列表（switcher + 排序）+ 报告页。"""
+from pathlib import Path
+
 from flask import Flask, jsonify, render_template, request
 
 from .models import Decision
@@ -6,11 +8,18 @@ from .report import ReportBuilder
 from .service import HumanReview
 
 
-def create_app(review: HumanReview, report_builder: ReportBuilder) -> Flask:
+def create_app(
+    review: HumanReview,
+    report_builder: ReportBuilder,
+    investigations: list | None = None,
+    report_path: str | None = None,
+) -> Flask:
     app = Flask(__name__)
     app.config["review"] = review
     app.config["report_builder"] = report_builder
     app.config["evidences"] = []
+    app.config["investigations"] = list(investigations or [])
+    app.config["report_path"] = report_path
 
     @app.route("/")
     def index():
@@ -43,9 +52,13 @@ def create_app(review: HumanReview, report_builder: ReportBuilder) -> Flask:
     def report():
         evidences = app.config["evidences"]
         try:
-            r = report_builder.build(evidences, review.state)
+            r = report_builder.build(
+                evidences, review.state, app.config["investigations"]
+            )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 409
+        if app.config["report_path"]:
+            Path(app.config["report_path"]).write_text(r.html, encoding="utf-8")
         return r.html
 
     return app

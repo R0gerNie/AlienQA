@@ -140,3 +140,42 @@ def test_flask_index_renders_switcher(reporter):
     html = client.get("/").get_data(as_text=True)
     assert "EV-001" in html
     assert "checkbox" in html
+
+
+def test_flask_report_persists_to_file(reporter, tmp_path):
+    builder, fake = reporter
+    fake.texts.append("<h1>报告</h1><section>内容</section>")
+    review = HumanReview()
+    out = tmp_path / "report.html"
+    app = create_app(review, builder, report_path=str(out))
+    app.config["evidences"] = [_ev("EV-001", expectation="点保存应有提示")]
+    review.decide("EV-001", Decision.CONFIRMED)
+    client = app.test_client()
+    assert client.get("/report").status_code == 200
+    html = out.read_text(encoding="utf-8")
+    assert html.startswith("<!doctype html>")
+    assert "<h1>报告</h1>" in html
+
+
+def test_flask_report_includes_investigations(reporter):
+    builder, fake = reporter
+    fake.texts.append("<h1>报告</h1>")
+    review = HumanReview()
+    inv = SimpleNamespace(
+        issue_id="ISSUE-001",
+        root_cause_hypothesis="端口受限导致 net::ERR_UNSAFE_PORT",
+        reproduction_steps=["1. 点击 Fetch refused"],
+    )
+    app = create_app(review, builder, investigations=[inv])
+    ev = Evidence(
+        id="EV-001",
+        issue_id="ISSUE-001",
+        expectation="点击应得到反馈",
+        replay={"action_sequence": []},
+    )
+    app.config["evidences"] = [ev]
+    review.decide("EV-001", Decision.CONFIRMED)
+    client = app.test_client()
+    assert client.get("/report").status_code == 200
+    prompt = fake.calls[0]["messages"][0]["content"]
+    assert "端口受限导致 net::ERR_UNSAFE_PORT" in prompt

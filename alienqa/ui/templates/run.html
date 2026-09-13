@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>扫描 <code>{{ rec.id }}</code></h1>
+<table>
+  <tr><th>项目路径</th><td>{{ rec.project_path or '—' }}</td></tr>
+  <tr><th>测试单元</th><td>{{ rec.unit or '—' }}</td></tr>
+  <tr><th>入口文件</th><td>{{ rec.entry or '—' }}</td></tr>
+  <tr><th>状态</th><td><span class="badge {{ rec.status }}">{{ rec.status }}</span></td></tr>
+  <tr><th>开始 / 结束</th><td>{{ rec.started_at }} / {{ rec.finished_at or '—' }}</td></tr>
+  <tr><th>证据 / Issue / 采信</th><td>{{ rec.evidence_count }} / {{ rec.issue_count }} / {{ rec.accepted_count }}</td></tr>
+  {% if rec.error %}<tr><th>错误</th><td style="color:#cf222e;">{{ rec.error }}</td></tr>{% endif %}
+</table>
+{% if report_exists %}
+<p><a href="/runs/{{ rec.id }}/report">查看报告</a> · <a href="/runs/{{ rec.id }}/review">重新审核</a></p>
+{% elif review_ready %}
+<p><a href="/runs/{{ rec.id }}/review">去审核（逐条采信）</a></p>
+{% elif rec.status == 'running' %}
+<p class="muted">扫描中，完成后进入审核…</p>
+{% endif %}
+<p><a href="/history">← 返回历史</a></p>
+{% endblock %}
