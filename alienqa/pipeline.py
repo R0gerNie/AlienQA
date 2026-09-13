@@ -18,7 +18,7 @@ from .expectation import ExpectationEngine, PageInfo
 from .investigation import InvestigationAgent
 from .llm import LLMClient, LLMConfig
 from .loader import Project, UnitLocator, UnitScope, is_all_unit
-from .mapper import ProductMapper
+from .mapper import ProductMapper, ProductMap
 from .observation import ObservationEngine
 from .planner import ActionPlanner, ExploreBudget
 from .review import Decision, HumanReview, Report, ReportBuilder, ReviewState
@@ -94,7 +94,12 @@ class AlienQAPipeline:
 
     def collect(self, project: Project) -> PipelineResult:
         """01→11：产品地图 + 探索 + 证据 + 去重 + 调查。不采信、不产报告。"""
-        # 02 产品地图
+        if getattr(project, "input_type", "") == "browser":
+            return self._collect_browser(project)
+        return self._collect_source(project)
+
+    def _collect_source(self, project: Project) -> PipelineResult:
+        # 02 产品地图（源码模式：先 map 后 launch）
         self._log("[02] 生成产品地图中…")
         pm = ProductMapper(self.client).map(project)
         self._log(f"[02] 主旨: {pm.brief[:160]}")
@@ -107,6 +112,22 @@ class AlienQAPipeline:
             return self._collect_live(driver, project, pm)
         finally:
             driver.close()
+
+    def _collect_browser(self, project: Project) -> PipelineResult:
+        # 01b/02b 浏览器黑盒：先 launch 后 map（map 要读浏览器），可带登录态
+        self._log("[01b] 浏览器黑盒装载（URL 模式）…")
+        driver = PlaywrightDriver(headless=self.headless)
+        driver.launch(project.base_url, storage_state=project.storage_state or None)
+        try:
+            pm = self._map_from_browser(driver, project)
+            return self._collect_live(driver, project, pm)
+        finally:
+            driver.close()
+
+    def _map_from_browser(self, driver, project) -> ProductMap:
+        """02b：用浏览器可见文字建立产品地图（本步占位，返回空地图）。"""
+        self._log("[02b] 浏览器表面产品地图待实现（02b），暂返回空 ProductMap")
+        return ProductMap()
 
     def run(self, project: Project, output_path: str | Path | None = None) -> PipelineResult:
         """01→12：collect 之后按 auto_confirm 采信，再生成最终报告。"""

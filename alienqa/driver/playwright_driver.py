@@ -22,7 +22,7 @@ class PlaywrightDriver(BaseDriver):
 
     # ---- 生命周期 ----
 
-    def launch(self, url: str, storage_state: dict | None = None) -> None:
+    def launch(self, url: str, storage_state: str | dict | None = None) -> None:
         from playwright.sync_api import sync_playwright
 
         self._pw = sync_playwright().start()

@@ -26,6 +26,43 @@ def test_pipeline_focus_derived_from_unit():
     assert p.focus == "单元：登录表单\n指令：错误密码应有提示"
 
 
+def test_collect_browser_launches_before_map(monkeypatch):
+    from alienqa.loader import ProjectLoader
+    from alienqa.mapper import ProductMap
+
+    order = []
+
+    class _FakeDriver:
+        def __init__(self, headless=True):
+            pass
+
+        def launch(self, url, storage_state=None):
+            order.append(("launch", url, storage_state))
+
+        def close(self):
+            pass
+
+        def screenshot(self):
+            return b"img"
+
+        def visible_text(self):
+            return "页面文字"
+
+        def url(self):
+            return "http://x/"
+
+        def interactive_elements(self):
+            return []
+
+    monkeypatch.setattr("alienqa.pipeline.PlaywrightDriver", _FakeDriver)
+    pipeline = AlienQAPipeline(LLMConfig(roles={}), verbose=False)
+    pipeline._map_from_browser = lambda driver, project: (order.append(("map",)) or ProductMap())
+    pipeline.collect(ProjectLoader().load_browser("http://x/"))
+    kinds = [k for k, *_ in order]
+    assert kinds[0] == "launch"
+    assert kinds[1] == "map"
+
+
 def test_pipeline_result_html():
     report = Report(html="<p>x</p>", accepted_count=1, total_count=2)
     result = PipelineResult(report=report)

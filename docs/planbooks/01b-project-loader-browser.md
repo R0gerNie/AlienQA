@@ -19,6 +19,7 @@
 
 ```text
 一个可达的前端 URL（如 http://localhost:3001）
+可选：登录态文件路径（storage_state.json）——用户自己浏览器里已有登录，黑盒才能看到业务内容
 ```
 
 ## 3. 输出
@@ -33,6 +34,7 @@
   "routes": ["/"],
   "entry_points": ["http://localhost:3001"],
   "visible_files": [],
+  "storage_state": "config/session.json",
   "selection_audit": { "total_files": 0, "included": 0 }
 }
 ```
@@ -50,9 +52,19 @@
 
 ```python
 class ProjectLoader:
-    def load_browser(self, base_url: str, routes: list[str] | None = None) -> Project: ...
+    def load_browser(self, base_url: str, routes: list[str] | None = None,
+                     storage_state: str | None = None) -> Project: ...
     # 原 load() 不变，仅供源码模式使用
 ```
+
+## 5.1 登录态（storage_state）
+
+纯 URL 到不了登录墙后面的业务内容，所以黑盒模式必须能带上「用户自己浏览器里的登录态」：
+
+- **采集**：`python -m alienqa --login <url>` 起有头浏览器，用户手动登录后按回车，Playwright 把 cookies + localStorage 存成 `config/session.json`（`capture_session`）。
+- **装载**：`load_browser(url, storage_state="config/session.json")` → `Project.storage_state`。
+- **使用**：`02b/04` 在 `driver.launch(url, storage_state=project.storage_state or None)` 时把会话透传给 Playwright `new_context(storage_state=...)`，浏览器一开就带着登录态。
+- **安全**：`session.json` 视为密钥类文件，已入 `.gitignore`，不上传仓库。
 
 ## 6. 关系
 
@@ -67,6 +79,7 @@ class ProjectLoader:
 ## 8. 验收标准
 
 - 给定一个 URL，能构造出 `input_type="browser"`、`visible_files=[]` 的最小 `Project`。
+- 给定 `storage_state`，`Project.storage_state` 正确透传；`driver.launch(url, storage_state=...)` 带会话打开。
 - 下游 02b/04 能直接消费该 `Project` 且不因 `visible_files` 为空而报错。
 
 ## 9. 开放问题

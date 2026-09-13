@@ -53,6 +53,19 @@ class ProjectLoader:
             selection_audit=audit,
         )
 
+    def load_browser(self, base_url: str, routes: list[str] | None = None,
+                     storage_state: str | None = None) -> Project:
+        """黑盒装载（01b）：只给一个可达 URL（可选登录态文件），不扫源码。"""
+        return Project(
+            input_type="browser",
+            framework="browser",
+            base_url=base_url,
+            routes=list(routes) if routes else ["/"],
+            entry_points=[base_url],
+            visible_files=[],
+            storage_state=storage_state or "",
+        )
+
     def _build_frontend_apps(self, root: Path, ranked) -> list:
         return [
             FrontendApp(

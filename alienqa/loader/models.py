@@ -52,6 +52,7 @@ class Project:
     start: str = ""
     build: str = ""
     base_url: str = "http://localhost:3000"
+    storage_state: str = ""  # 黑盒模式可选：Playwright storage_state 文件路径（登录态）
     routes: list = field(default_factory=list)
     dependencies: dict = field(default_factory=dict)
     environment: dict = field(default_factory=dict)
