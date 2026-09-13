@@ -1,4 +1,5 @@
-"""ProjectLoader：L0 来源适配 + 编排 L1/L2 的加载流程。"""
+"""ProjectLoader：L0 来源适配 + 编排 L1/L2/L3 的加载流程。"""
+import re
 from pathlib import Path
 
 from .framework import (
@@ -40,7 +41,7 @@ class ProjectLoader:
             framework=framework,
             start=start,
             build=build,
-            base_url=_BASE_URL.get(framework, "http://localhost:3000"),
+            base_url=self._base_url(framework, start),
             routes=routes,
             dependencies=self._merge_deps(manifest),
             environment=environment,
@@ -99,7 +100,34 @@ class ProjectLoader:
             raise FileNotFoundError(f"输入不存在: {source}")
         if p.is_dir():
             return p.resolve()
-        raise NotImplementedError("L0 目前仅支持目录输入，zip/docker/url/CI 待实现")
+        if p.is_file() and p.suffix.lower() == ".zip":
+            return self._extract_zip(p)
+        raise NotImplementedError("L0 目前仅支持目录/zip 输入，docker/url/CI 待实现")
+
+    def _extract_zip(self, zip_path: Path) -> Path:
+        import tempfile
+        import zipfile
+
+        target = Path(tempfile.mkdtemp(prefix="alienqa_zip_"))
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(target)
+        return target.resolve()
+
+    def _base_url(self, framework: str, start_script: str) -> str:
+        port = self._detect_port(start_script)
+        if port:
+            return f"http://localhost:{port}"
+        return _BASE_URL.get(framework, "http://localhost:3000")
+
+    @staticmethod
+    def _detect_port(script: str):
+        if not script:
+            return None
+        for pat in (r"--port\s+(\d+)", r"-p\s+(\d+)", r"PORT[=\s]+(\d+)"):
+            m = re.search(pat, script)
+            if m:
+                return int(m.group(1))
+        return None
 
     def _merge_deps(self, manifest: Path | None) -> dict:
         if not manifest:

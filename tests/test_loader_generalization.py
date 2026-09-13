@@ -1,8 +1,9 @@
 """通用性测试：确认 Loader 不依赖 cal.diy/chatwoot 等具体项目，能泛化到合成结构。"""
 import json
+import zipfile
 from pathlib import Path
 
-from alienqa.loader import ProjectLoader
+from alienqa.loader import Budget, ProjectLoader
 
 
 def _write_json(path: Path, obj: dict):
@@ -63,3 +64,45 @@ def test_vue_monorepo_nested_frontend(tmp_path):
     assert project.framework == "Vue"
     paths = [v.path.replace("\\", "/") for v in project.visible_files]
     assert any(p.startswith("apps/frontend/src/") for p in paths)
+
+
+def test_zip_input(tmp_path):
+    """zip 输入能解压并识别框架与路由。"""
+    proj = tmp_path / "proj"
+    _write_json(
+        proj / "package.json",
+        {"name": "zipapp", "dependencies": {"next": "14", "react": "18", "react-dom": "18"}, "scripts": {"dev": "next dev"}},
+    )
+    (proj / "app").mkdir(parents=True)
+    (proj / "app/page.tsx").write_text("export default function Page(){ return (<div>hi</div>) }")
+    zip_path = tmp_path / "proj.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        for f in proj.rglob("*"):
+            zf.write(f, f.relative_to(tmp_path))
+
+    project = ProjectLoader().load(zip_path)
+    assert project.input_type == "zip"
+    assert project.framework == "Next.js"
+    assert "/" in project.routes
+
+
+def test_visible_files_scored_and_ranked(tmp_path):
+    """L3：可见文件带 ui_score/role，且按评分降序。"""
+    _write_json(
+        tmp_path / "package.json",
+        {"name": "app", "dependencies": {"next": "14", "react": "18", "react-dom": "18"}, "scripts": {"dev": "next dev"}},
+    )
+    (tmp_path / "app").mkdir(parents=True)
+    (tmp_path / "app/page.tsx").write_text(
+        "export default function Page(){ return (<div><button onClick={x}>Hi</button></div>) }"
+    )
+    (tmp_path / "app/login").mkdir(parents=True)
+    (tmp_path / "app/login/page.tsx").write_text("export default function Login(){ return (<form><input /></form>) }")
+
+    project = ProjectLoader().load(tmp_path)
+    assert project.framework == "Next.js"
+    routes = [v for v in project.visible_files if v.role == "route"]
+    assert len(routes) >= 2
+    assert all(v.ui_score > 0 for v in routes)
+    scores = [v.ui_score for v in project.visible_files]
+    assert scores == sorted(scores, reverse=True)

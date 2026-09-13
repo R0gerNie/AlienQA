@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AlienQA Demo App</title>
+  <style>
+    .hover-card {
+      width: 140px; height: 90px; background: #eee;
+      display: flex; align-items: center; justify-content: center;
+      transition: box-shadow .1s ease;
+    }
+    .hover-card:hover { box-shadow: 0 0 8px rgba(0, 0, 0, .5); }
+    #status { margin: 10px 0; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <button id="greet">Greet</button>
+  <div id="status">idle</div>
+  <div class="hover-card" id="card">Hover me</div>
+  <input id="name" placeholder="your name" />
+  <button id="broken">Broken</button>
+  <button id="fetch-404">Fetch 404</button>
+  <button id="fetch-refused">Fetch refused</button>
+  <script>
+    document.getElementById('greet').addEventListener('click', function () {
+      document.getElementById('status').textContent = 'greeted';
+    });
+    document.getElementById('broken').addEventListener('click', function () {
+      throw new Error('intentional demo error');
+    });
+    document.getElementById('fetch-404').addEventListener('click', function () {
+      fetch('/definitely-missing.json').catch(function () {});
+    });
+    document.getElementById('fetch-refused').addEventListener('click', function () {
+      fetch('http://nonexistent.invalid/nope').catch(function () {});
+    });
+  </script>
+</body>
+</html>
