@@ -62,6 +62,29 @@ class LlmRoles:
             prompt += "\n\n注意：你上一次的输出不是合法 JSON。这次只输出一个合法 JSON 对象。"
         return self.client.complete(Role.GIST, [{"role": "user", "content": prompt}]).text
 
+    # A3 单元定位（低温度，复用 GIST，结构化输出）：给 01+
+    def locate_unit(self, unit: str, instructions: str, product_brief: str,
+                    elements: list, repair: bool = False) -> str:
+        element_lines = "\n".join(
+            f"- selector={e.get('selector') or ''} tag={e.get('tag') or ''} "
+            f"text={e.get('text') or ''} href={e.get('href') or ''}"
+            for e in elements[:80]
+        )
+        text = (
+            "你是前端定位专家。给定产品简介、页面可交互元素清单，以及一个单元描述，"
+            "请找出哪些元素属于这个单元，以便后续只测试这个单元。\n"
+            f"单元：{unit}\n"
+            f"指令：{instructions or '（无）'}\n\n"
+            f"产品简介：{product_brief[:2000]}\n\n"
+            f"可交互元素：\n{element_lines}\n\n"
+            "严格输出一个 JSON 对象（不要 markdown、不要多余文字）：\n"
+            '{"selectors": ["精确匹配的 selector"], "keywords": ["元素文本/链接里出现过的词"], "summary": "一句话说明定位到了什么"}\n'
+            "selectors 只写元素清单里真实存在的 selector；keywords 用元素文本/链接里出现过的词。"
+        )
+        if repair:
+            text += "\n\n注意：你上一次的输出不是合法 JSON。这次只输出一个合法 JSON 对象。"
+        return self.client.complete(Role.GIST, [{"role": "user", "content": text}]).text
+
     # B 预期生成（高温度，采样取并集）：给 08
     def generate_expectations(self, gist: str, page_text: str, samples: int = 2, focus: str = "") -> list:
         intro = (

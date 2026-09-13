@@ -51,15 +51,6 @@ def _sorted_evidences(evidences: list, by: str = "severity") -> list:
     return sorted(evidences, key=lambda e: order.get(e.severity.value, 9))
 
 
-def _build_focus(unit: str, instructions: str) -> str:
-    parts = []
-    if unit:
-        parts.append(f"单元：{unit}")
-    if instructions:
-        parts.append(f"指令：{instructions}")
-    return "\n".join(parts)
-
-
 def _serve(directory: str) -> tuple:
     """起一个本地静态服务器，返回 (server, base_url)。"""
 
@@ -236,7 +227,8 @@ def _start_job(app, rec, project_path: str, entry: str) -> None:
                 app.config["config"],
                 artifacts_dir=str(rec.dir / "artifacts"),
                 auto_confirm=False,
-                focus=_build_focus(rec.unit, rec.instructions),
+                unit=rec.unit,
+                instructions=rec.instructions,
                 verbose=True,
             )
             result = pipeline.collect(project)

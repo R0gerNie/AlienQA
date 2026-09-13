@@ -18,6 +18,14 @@ def test_pipeline_constructs_with_config():
     assert p.max_actions == 1
 
 
+def test_pipeline_focus_derived_from_unit():
+    cfg = LLMConfig(roles={"gist": RoleConfig(model="deepseek/deepseek-chat")})
+    p = AlienQAPipeline(cfg, unit="登录表单", instructions="错误密码应有提示", verbose=False)
+    assert p.unit == "登录表单"
+    assert p.instructions == "错误密码应有提示"
+    assert p.focus == "单元：登录表单\n指令：错误密码应有提示"
+
+
 def test_pipeline_result_html():
     report = Report(html="<p>x</p>", accepted_count=1, total_count=2)
     result = PipelineResult(report=report)

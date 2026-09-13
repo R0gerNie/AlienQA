@@ -17,12 +17,21 @@ from .evidence import EvidenceEngine
 from .expectation import ExpectationEngine, PageInfo
 from .investigation import InvestigationAgent
 from .llm import LLMClient, LLMConfig
-from .loader import Project
+from .loader import Project, UnitLocator
 from .mapper import ProductMapper
 from .observation import ObservationEngine
 from .planner import ActionPlanner, ExploreBudget
 from .review import Decision, HumanReview, Report, ReportBuilder, ReviewState
 from .state import StateTracker
+
+
+def _join_focus(unit: str, instructions: str) -> str:
+    parts = []
+    if unit:
+        parts.append(f"单元：{unit}")
+    if instructions:
+        parts.append(f"指令：{instructions}")
+    return "\n".join(parts)
 
 
 @dataclass
@@ -51,6 +60,7 @@ class AlienQAPipeline:
     - artifacts_dir: 证据截图/技术信号落盘目录（None=临时目录）。
     - auto_confirm: 是否自动采信全部证据（CLI 演示模式；人工终审走 WebUI）。
     - focus: 单元扫描的聚焦指令（单元名 + 针对该单元的要求），注入 08 预期生成。
+    - unit / instructions: 单元定位器的输入；给出后会先圈定单元范围再探索。
     """
 
     def __init__(
@@ -62,6 +72,8 @@ class AlienQAPipeline:
         artifacts_dir: str | Path | None = None,
         auto_confirm: bool = True,
         focus: str = "",
+        unit: str = "",
+        instructions: str = "",
         verbose: bool = True,
     ):
         self.client = LLMClient(config)
@@ -70,7 +82,9 @@ class AlienQAPipeline:
         self.max_actions = max_actions
         self.artifacts_dir = artifacts_dir
         self.auto_confirm = auto_confirm
-        self.focus = focus
+        self.unit = unit
+        self.instructions = instructions
+        self.focus = focus or _join_focus(unit, instructions)
         self.verbose = verbose
 
     def _log(self, msg: str) -> None:
@@ -119,6 +133,14 @@ class AlienQAPipeline:
         # 05 初始状态
         state = tracker.capture(driver)
         evidences: list = []
+
+        # 01+ 单元定位器：有聚焦指令时圈定探索范围
+        scope = None
+        if self.unit or self.instructions:
+            locator = UnitLocator(self.client)
+            scope = locator.locate(self.unit, self.instructions, pm.brief, driver.interactive_elements())
+            self._log(f"[01+] 单元定位: {scope.summary or '未定位到具体元素（退化为全量探索）'}")
+
         self._log("[06] 探索启动，逐动作执行 08 预期 + 07 观察 + 09 证据…")
 
         for _step in range(self.max_actions):
@@ -132,6 +154,8 @@ class AlienQAPipeline:
                 history=tracker.sequence(),
             )
             candidates = planner.extract_candidates(driver)
+            if scope is not None and not scope.is_empty():
+                candidates = [c for c in candidates if scope.matches(c)]
             action = planner.plan(ctx, candidates, tracker.graph())
             if action is None:
                 break
