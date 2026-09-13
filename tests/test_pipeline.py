@@ -33,7 +33,7 @@ def test_collect_browser_launches_before_map(monkeypatch):
     order = []
 
     class _FakeDriver:
-        def __init__(self, headless=True):
+        def __init__(self, headless=True, browser="chrome"):
             pass
 
         def launch(self, url, storage_state=None):
@@ -61,6 +61,18 @@ def test_collect_browser_launches_before_map(monkeypatch):
     kinds = [k for k, *_ in order]
     assert kinds[0] == "launch"
     assert kinds[1] == "map"
+
+
+def test_map_from_browser_empty_surface_returns_empty_pm():
+    pipeline = AlienQAPipeline(LLMConfig(roles={}), verbose=False)
+
+    class _D:
+        def visible_text(self):
+            return "   "
+
+    pm = pipeline._map_from_browser(_D(), None)
+    assert pm.areas == []
+    assert pm.brief == ""
 
 
 def test_pipeline_result_html():

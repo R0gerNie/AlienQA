@@ -172,3 +172,37 @@ def test_map_areas_returns_list_of_area(mapper, fake_litellm, tmp_path):
     areas = mapper.map_areas(project)
     assert [a.name for a in areas] == ["A", "B"]
     assert all(isinstance(a, Area) for a in areas)
+
+
+# ---- 02b 黑盒：map_from_browser ----
+
+def test_map_from_browser_end_to_end(mapper, fake_litellm):
+    fake_litellm.texts.extend([
+        "这是一个任务管理面板。",  # summarize_gist
+        '{"areas":[{"name":"Tasks","pages":["/tasks"],"actions":["create task"]}]}',  # map_product
+    ])
+    project = Project(framework="browser", base_url="http://x")
+    pm = mapper.map_from_browser(project, "任务列表 新建任务 用户名 登出")
+    assert pm.brief == "这是一个任务管理面板。"
+    assert len(pm.areas) == 1
+    assert pm.areas[0].name == "Tasks"
+    assert pm.areas[0].actions == ["create task"]
+    assert len(fake_litellm.calls) == 2  # gist + map_product
+
+
+def test_map_from_browser_empty_surface_skips_llm(mapper, fake_litellm):
+    pm = mapper.map_from_browser(Project(), "   ")
+    assert pm.areas == []
+    assert pm.brief == ""
+    assert len(fake_litellm.calls) == 0
+
+
+def test_map_from_browser_retries_invalid_json(mapper, fake_litellm):
+    fake_litellm.texts.extend([
+        "gist",
+        "not json at all",                  # map_product #1 → 解析失败
+        '{"areas":[{"name":"A"}]}',         # map_product #2 (repair)
+    ])
+    pm = mapper.map_from_browser(Project(), "一些可见文字")
+    assert len(pm.areas) == 1
+    assert len(fake_litellm.calls) == 3  # gist + 2 map_product

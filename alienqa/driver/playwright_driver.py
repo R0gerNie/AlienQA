@@ -10,9 +10,11 @@ _MAX_INTERACTIVE = 200  # 交互元素枚举上限，防止巨型 DOM（如 swag
 
 
 class PlaywrightDriver(BaseDriver):
-    def __init__(self, headless: bool = True, record_video_dir: str | None = None):
+    def __init__(self, headless: bool = True, record_video_dir: str | None = None,
+                 browser: str = "chrome"):
         self._headless = headless
         self._record_video_dir = record_video_dir
+        self._browser_name = browser  # "chrome"（默认，系统 Google Chrome）或 "chromium"（Playwright 自带）
         self._pw = None
         self._browser = None
         self._context = None
@@ -26,7 +28,7 @@ class PlaywrightDriver(BaseDriver):
         from playwright.sync_api import sync_playwright
 
         self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.launch(headless=self._headless)
+        self._browser = self._launch_browser()
         kwargs = {"viewport": _DEFAULT_VIEWPORT}
         if self._record_video_dir:
             kwargs["record_video_dir"] = self._record_video_dir
@@ -38,10 +40,20 @@ class PlaywrightDriver(BaseDriver):
         self._page.goto(url)
         self.wait_for_settle()
 
+    def _launch_browser(self):
+        """默认优先系统 Chrome（channel='chrome'）；不可用时回退 Playwright 自带 Chromium。"""
+        if self._browser_name == "chromium":
+            return self._pw.chromium.launch(headless=self._headless)
+        try:
+            return self._pw.chromium.launch(headless=self._headless, channel="chrome")
+        except Exception:
+            return self._pw.chromium.launch(headless=self._headless)
+
     @classmethod
-    def from_project(cls, project, headless: bool = True, record_video_dir: str | None = None):
+    def from_project(cls, project, headless: bool = True, record_video_dir: str | None = None,
+                     browser: str = "chrome"):
         """直接消费 Project.base_url 启动（与 Loader 打通）。"""
-        d = cls(headless=headless, record_video_dir=record_video_dir)
+        d = cls(headless=headless, record_video_dir=record_video_dir, browser=browser)
         d.launch(project.base_url)
         return d
 

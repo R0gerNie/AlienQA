@@ -62,6 +62,7 @@ class AlienQAPipeline:
     - auto_confirm: 是否自动采信全部证据（CLI 演示模式；人工终审走 WebUI）。
     - focus: 单元扫描的聚焦指令（单元名 + 针对该单元的要求），注入 08 预期生成。
     - unit / instructions: 单元定位器的输入；给出后会先圈定单元范围再探索。
+    - browser: 浏览器偏好，"chrome"（默认，系统 Google Chrome，不可用时回退 Chromium）或 "chromium"。
     """
 
     def __init__(
@@ -76,6 +77,7 @@ class AlienQAPipeline:
         unit: str = "",
         instructions: str = "",
         verbose: bool = True,
+        browser: str = "chrome",
     ):
         self.client = LLMClient(config)
         self.samples = samples
@@ -87,6 +89,7 @@ class AlienQAPipeline:
         self.instructions = instructions
         self.focus = focus or _join_focus(unit, instructions)
         self.verbose = verbose
+        self.browser = browser
 
     def _log(self, msg: str) -> None:
         if self.verbose:
@@ -106,7 +109,7 @@ class AlienQAPipeline:
         self._log(f"[02] 功能区域: {len(pm.areas)} 个")
 
         # 04 浏览器
-        driver = PlaywrightDriver(headless=self.headless)
+        driver = PlaywrightDriver(headless=self.headless, browser=self.browser)
         driver.launch(project.base_url)
         try:
             return self._collect_live(driver, project, pm)
@@ -116,7 +119,7 @@ class AlienQAPipeline:
     def _collect_browser(self, project: Project) -> PipelineResult:
         # 01b/02b 浏览器黑盒：先 launch 后 map（map 要读浏览器），可带登录态
         self._log("[01b] 浏览器黑盒装载（URL 模式）…")
-        driver = PlaywrightDriver(headless=self.headless)
+        driver = PlaywrightDriver(headless=self.headless, browser=self.browser)
         driver.launch(project.base_url, storage_state=project.storage_state or None)
         try:
             pm = self._map_from_browser(driver, project)
@@ -125,9 +128,16 @@ class AlienQAPipeline:
             driver.close()
 
     def _map_from_browser(self, driver, project) -> ProductMap:
-        """02b：用浏览器可见文字建立产品地图（本步占位，返回空地图）。"""
-        self._log("[02b] 浏览器表面产品地图待实现（02b），暂返回空 ProductMap")
-        return ProductMap()
+        """02b：用浏览器可见文字建立产品地图（黑盒，无源码）。"""
+        self._log("[02b] 读取浏览器可见文字…")
+        surface = (driver.visible_text() or "").strip()
+        if not surface:
+            self._log("[02b] 页面无可见文字，返回空 ProductMap")
+            return ProductMap()
+        pm = ProductMapper(self.client).map_from_browser(project, surface)
+        self._log(f"[02b] 主旨: {pm.brief[:160]}")
+        self._log(f"[02b] 功能区域: {len(pm.areas)} 个")
+        return pm
 
     def run(self, project: Project, output_path: str | Path | None = None) -> PipelineResult:
         """01→12：collect 之后按 auto_confirm 采信，再生成最终报告。"""

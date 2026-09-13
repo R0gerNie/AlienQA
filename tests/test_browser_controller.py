@@ -103,3 +103,49 @@ def test_video_recording(http_base_url, tmp_path):
         d.close()
     videos = list(tmp_path.glob("*.webm"))
     assert videos
+
+
+# ---- 浏览器选择（默认 Chrome，回退 Chromium）----
+
+def test_launch_browser_prefers_chrome_then_falls_back():
+    d = PlaywrightDriver()
+
+    class _Chromium:
+        def __init__(self):
+            self.calls = []
+
+        def launch(self, **kwargs):
+            self.calls.append(kwargs)
+            if kwargs.get("channel") == "chrome":
+                raise RuntimeError("no chrome")
+            return "browser"
+
+    class _PW:
+        def __init__(self):
+            self.chromium = _Chromium()
+
+    d._pw = _PW()
+    assert d._launch_browser() == "browser"
+    assert d._pw.chromium.calls[0]["channel"] == "chrome"
+    assert "channel" not in d._pw.chromium.calls[1]
+
+
+def test_launch_browser_chromium_direct():
+    d = PlaywrightDriver(browser="chromium")
+
+    class _Chromium:
+        def __init__(self):
+            self.calls = []
+
+        def launch(self, **kwargs):
+            self.calls.append(kwargs)
+            return "browser"
+
+    class _PW:
+        def __init__(self):
+            self.chromium = _Chromium()
+
+    d._pw = _PW()
+    assert d._launch_browser() == "browser"
+    assert len(d._pw.chromium.calls) == 1
+    assert "channel" not in d._pw.chromium.calls[0]

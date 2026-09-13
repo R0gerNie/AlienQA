@@ -29,6 +29,19 @@ class ProductMapper:
     def map_areas(self, project: Project) -> list:
         return self.map(project).areas
 
+    def map_from_browser(self, project: Project, surface_text: str) -> ProductMap:
+        """02b 黑盒：只靠浏览器可见文字建立产品地图，复用同一套概括流程。
+
+        页面空白（无可读文字）时直接返回空 ProductMap，不打 LLM。
+        """
+        text = (surface_text or "").strip()
+        if not text:
+            return ProductMap()
+        gist = self.roles.summarize_gist("", text)
+        pm = self._extract(gist, text)
+        pm.brief = gist
+        return pm
+
     def _extract(self, gist: str, surface_text: str) -> ProductMap:
         """结构化提取 + JSON 解析，失败重试一次，仍失败返回空 ProductMap。"""
         raw = self.roles.map_product(gist, surface_text)
