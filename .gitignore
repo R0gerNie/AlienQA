@@ -40,6 +40,7 @@ config.local.yaml
 secrets/
 *.key
 *.pem
+session.json
 
 # 系统
 .DS_Store

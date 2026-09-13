@@ -75,11 +75,20 @@ def main(argv=None) -> int:
     parser.add_argument("--headful", action="store_true", help="有头运行浏览器（默认无头）")
     parser.add_argument("--review", action="store_true", help="收集证据后启动人工审核 WebUI（逐条拨动采信开关，再生成终稿）")
     parser.add_argument("--ui", action="store_true", help="启动用户前端控制台（密钥 / 项目扫描 / 历史浏览）")
+    parser.add_argument("--login", default=None, metavar="URL", help="起有头浏览器手动登录并保存 storage_state（配合 --session-out）")
+    parser.add_argument("--session-out", default=str(REPO / "config" / "session.json"), help="登录态输出路径（默认 config/session.json）")
     parser.add_argument("--host", default="127.0.0.1", help="WebUI 监听地址")
     parser.add_argument("--port", type=int, default=5000, help="WebUI 端口")
     args = parser.parse_args(argv)
 
     _load_keys()
+
+    if args.login:
+        from .loader import capture_session
+
+        out = capture_session(args.login, args.session_out)
+        print(f"[login] 已保存登录态 → {out}", flush=True)
+        return 0
 
     if args.ui:
         from .ui import create_ui_app

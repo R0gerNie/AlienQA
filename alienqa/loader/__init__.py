@@ -2,6 +2,7 @@
 from .entry_detector import EntryDetector, collect_entry_candidates, is_all_unit
 from .loader import ProjectLoader
 from .models import Budget, FrontendApp, Project, SelectionAudit, VisibleFile
+from .session import capture_session
 from .unit_locator import UnitLocator, UnitScope
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "EntryDetector",
     "collect_entry_candidates",
     "is_all_unit",
+    "capture_session",
 ]
