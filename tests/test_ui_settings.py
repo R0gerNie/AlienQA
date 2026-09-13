@@ -43,3 +43,11 @@ def test_settings_skip_empty_keys(monkeypatch):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     Settings(llm_keys={"deepseek": ""}).apply_to_env()
     assert "DEEPSEEK_API_KEY" not in os.environ
+
+
+def test_settings_instructions_roundtrip(tmp_path):
+    store = SettingsStore(tmp_path / "config.local.yaml")
+    store.save(Settings(unit="登录表单", instructions="错误密码应有提示"))
+    loaded = store.load()
+    assert loaded.unit == "登录表单"
+    assert loaded.instructions == "错误密码应有提示"

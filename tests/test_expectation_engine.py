@@ -87,6 +87,17 @@ def test_expect_samples_and_dedup(engine, fake_litellm):
     assert len(fake_litellm.calls) == 2
 
 
+def test_expect_with_unit_focus_injects_instruction(fake_litellm):
+    cfg = LLMConfig(roles={"expectation": RoleConfig(model="gpt-4o-mini", temperature=0.8)})
+    engine = ExpectationEngine(LLMClient(cfg), samples=1,
+                               focus="单元：登录表单\n指令：错误密码应有提示")
+    fake_litellm.texts.append("- 错误密码应有提示")
+    engine.expect(_ctx(), PageInfo())
+    prompt = _prompt(fake_litellm.calls[0])
+    assert "登录表单" in prompt
+    assert "错误密码应有提示" in prompt
+
+
 # ---- judge()：盲判 ----
 
 def test_judge_returns_mismatch(engine, fake_litellm):

@@ -63,13 +63,25 @@ class LlmRoles:
         return self.client.complete(Role.GIST, [{"role": "user", "content": prompt}]).text
 
     # B 预期生成（高温度，采样取并集）：给 08
-    def generate_expectations(self, gist: str, page_text: str, samples: int = 2) -> list:
-        prompt = (
+    def generate_expectations(self, gist: str, page_text: str, samples: int = 2, focus: str = "") -> list:
+        intro = (
             "你是一名第一次打开这个产品、从未受过任何培训的普通用户。"
             "你只看到产品简介和当前界面可见文字。\n"
-            "请用最朴素的直觉，直接输出一个简洁列表：每个可见按钮/输入框/链接，"
-            "你自然而然会预期它点了之后发生什么；以及哪些地方让你觉得'好像少了点什么'。\n"
-            "每条预期一行，不要小标题、不要 markdown 加粗、不要编号、不要解释。\n\n"
+        )
+        if focus:
+            intro += (
+                f"本次你的任务被限定在一个具体单元上：\n【单元与指令】\n{focus}\n\n"
+                "请只围绕这个单元——它内部的可见按钮/输入框/链接/提示，"
+                "按最朴素的直觉输出你预期会发生什么，以及'好像少了点什么'。\n"
+            )
+        else:
+            intro += (
+                "请用最朴素的直觉，直接输出一个简洁列表：每个可见按钮/输入框/链接，"
+                "你自然而然会预期它点了之后发生什么；以及哪些地方让你觉得'好像少了点什么'。\n"
+            )
+        prompt = (
+            intro
+            + "每条预期一行，不要小标题、不要 markdown 加粗、不要编号、不要解释。\n\n"
             f"产品简介:\n{gist}\n\n当前界面文字:\n{page_text[:4000]}"
         )
         results = set()

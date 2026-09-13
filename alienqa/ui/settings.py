@@ -43,6 +43,7 @@ class Settings:
     llm_keys: dict = field(default_factory=dict)  # provider -> key
     project_path: str = ""
     unit: str = ""
+    instructions: str = ""
 
     def apply_to_env(self) -> None:
         for provider, key in self.llm_keys.items():
@@ -57,6 +58,7 @@ class Settings:
             "llm_keys": dict(self.llm_keys),
             "project_path": self.project_path,
             "unit": self.unit,
+            "instructions": self.instructions,
         }
 
     @classmethod
@@ -66,6 +68,7 @@ class Settings:
             llm_keys={str(k): str(v) for k, v in (data.get("llm_keys") or {}).items()},
             project_path=str(data.get("project_path") or ""),
             unit=str(data.get("unit") or ""),
+            instructions=str(data.get("instructions") or ""),
         )
 
 

@@ -51,6 +51,15 @@ def _sorted_evidences(evidences: list, by: str = "severity") -> list:
     return sorted(evidences, key=lambda e: order.get(e.severity.value, 9))
 
 
+def _build_focus(unit: str, instructions: str) -> str:
+    parts = []
+    if unit:
+        parts.append(f"单元：{unit}")
+    if instructions:
+        parts.append(f"指令：{instructions}")
+    return "\n".join(parts)
+
+
 def _serve(directory: str) -> tuple:
     """起一个本地静态服务器，返回 (server, base_url)。"""
 
@@ -96,6 +105,7 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
             settings.llm_keys = keys
             settings.project_path = (request.form.get("project_path") or "").strip()
             settings.unit = (request.form.get("unit") or "").strip()
+            settings.instructions = (request.form.get("instructions") or "").strip()
             store.save(settings)
             return render_template("settings.html", active="settings", saved=True,
                                    settings=settings, providers=providers)
@@ -113,6 +123,7 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
         data = request.get_json(force=True)
         project_path = (data.get("project_path") or "").strip()
         unit = (data.get("unit") or "").strip()
+        instructions = (data.get("instructions") or "").strip()
         entry = (data.get("entry") or "").strip().lstrip("/") or "index.html"
         if not project_path:
             return jsonify({"error": "缺少项目路径"}), 400
@@ -120,8 +131,9 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
             return jsonify({"error": f"目录不存在：{project_path}"}), 400
         settings.project_path = project_path
         settings.unit = unit
+        settings.instructions = instructions
         store.save(settings)
-        rec = runs.create(project_path, unit, entry)
+        rec = runs.create(project_path, unit, entry, instructions)
         _start_job(app, rec, project_path, entry)
         return jsonify({"run_id": rec.id})
 
@@ -224,6 +236,7 @@ def _start_job(app, rec, project_path: str, entry: str) -> None:
                 app.config["config"],
                 artifacts_dir=str(rec.dir / "artifacts"),
                 auto_confirm=False,
+                focus=_build_focus(rec.unit, rec.instructions),
                 verbose=True,
             )
             result = pipeline.collect(project)

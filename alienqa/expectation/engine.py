@@ -8,10 +8,11 @@ from .models import Expectation, Observation, PageInfo, parse_mismatches
 
 
 class ExpectationEngine:
-    def __init__(self, client: LLMClient, samples: int = 2):
+    def __init__(self, client: LLMClient, samples: int = 2, focus: str = ""):
         self.client = client
         self.roles = LlmRoles(client)
         self.samples = samples
+        self.focus = focus
 
     def expect(self, ctx: ExplorerContext, page_info: PageInfo) -> list:
         """生成预期（不读 Observation，防自我确认）。"""
@@ -20,6 +21,7 @@ class ExpectationEngine:
             gist=getattr(ctx, "product_brief", "") or "",
             page_text=page_text,
             samples=self.samples,
+            focus=self.focus,
         )
         return [Expectation(text=t) for t in texts]
 

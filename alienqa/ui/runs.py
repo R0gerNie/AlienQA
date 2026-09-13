@@ -61,6 +61,7 @@ class RunRecord:
     dir: Path | None = None  # 由 RunManager.get() 回填
     project_path: str = ""
     unit: str = ""
+    instructions: str = ""
     entry: str = "index.html"
     started_at: str = ""
     finished_at: str = ""
@@ -75,6 +76,7 @@ class RunRecord:
             "id": self.id,
             "project_path": self.project_path,
             "unit": self.unit,
+            "instructions": self.instructions,
             "entry": self.entry,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
@@ -91,6 +93,7 @@ class RunRecord:
             id=str(d.get("id") or ""),
             project_path=str(d.get("project_path") or ""),
             unit=str(d.get("unit") or ""),
+            instructions=str(d.get("instructions") or ""),
             entry=str(d.get("entry") or "index.html"),
             started_at=str(d.get("started_at") or ""),
             finished_at=str(d.get("finished_at") or ""),
@@ -108,7 +111,7 @@ class RunManager:
     def __init__(self, runs_dir: str | Path):
         self.root = Path(runs_dir)
 
-    def create(self, project_path: str, unit: str = "", entry: str = "index.html") -> RunRecord:
+    def create(self, project_path: str, unit: str = "", entry: str = "index.html", instructions: str = "") -> RunRecord:
         run_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{_slug(Path(project_path).name)}"
         run_dir = self.root / run_id
         n = 1
@@ -121,6 +124,7 @@ class RunManager:
             dir=run_dir,
             project_path=project_path,
             unit=unit,
+            instructions=instructions,
             entry=entry,
             started_at=time.strftime("%Y-%m-%d %H:%M:%S"),
             status="running",

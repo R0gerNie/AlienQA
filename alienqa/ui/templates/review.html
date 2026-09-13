@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block body %}
 <h1>审核 <code>{{ run_id }}</code></h1>
-<p class="muted">项目：{{ rec.project_path }} · 测试单元：{{ rec.unit or '—' }}</p>
+<p class="muted">项目：{{ rec.project_path }} · 测试单元：{{ rec.unit or '—' }}{% if rec.instructions %} · 指令：{{ rec.instructions }}{% endif %}</p>
 <div class="toolbar">
   <a href="/runs/{{ run_id }}/review?sort=severity" {% if sort == 'severity' %}class="active"{% endif %}>按严重度排序</a>
   <a href="/runs/{{ run_id }}/review?sort=alphabetical" {% if sort == 'alphabetical' %}class="active"{% endif %}>按字母序排序</a>

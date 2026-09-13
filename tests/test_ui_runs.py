@@ -39,6 +39,13 @@ def test_create_unique_ids(tmp_path):
     assert a.id != b.id
 
 
+def test_run_record_instructions(tmp_path):
+    rm = RunManager(tmp_path / "runs")
+    rec = rm.create("d:/p", unit="登录表单", instructions="错误密码应有提示")
+    assert rec.instructions == "错误密码应有提示"
+    assert rm.get(rec.id).instructions == "错误密码应有提示"
+
+
 def test_save_and_load_results_and_review(tmp_path):
     from alienqa.evidence import Evidence, Severity
     from alienqa.investigation import Investigation

@@ -50,6 +50,7 @@ class AlienQAPipeline:
     - max_actions: 探索动作上限（保护性预算）。
     - artifacts_dir: 证据截图/技术信号落盘目录（None=临时目录）。
     - auto_confirm: 是否自动采信全部证据（CLI 演示模式；人工终审走 WebUI）。
+    - focus: 单元扫描的聚焦指令（单元名 + 针对该单元的要求），注入 08 预期生成。
     """
 
     def __init__(
@@ -60,6 +61,7 @@ class AlienQAPipeline:
         max_actions: int = 10,
         artifacts_dir: str | Path | None = None,
         auto_confirm: bool = True,
+        focus: str = "",
         verbose: bool = True,
     ):
         self.client = LLMClient(config)
@@ -68,6 +70,7 @@ class AlienQAPipeline:
         self.max_actions = max_actions
         self.artifacts_dir = artifacts_dir
         self.auto_confirm = auto_confirm
+        self.focus = focus
         self.verbose = verbose
 
     def _log(self, msg: str) -> None:
@@ -106,7 +109,7 @@ class AlienQAPipeline:
         return result
 
     def _collect_live(self, driver, project, pm) -> PipelineResult:
-        exp_engine = ExpectationEngine(self.client, samples=self.samples)
+        exp_engine = ExpectationEngine(self.client, samples=self.samples, focus=self.focus)
         obs_engine = ObservationEngine(self.client)
         ev_engine = EvidenceEngine(artifacts_dir=self.artifacts_dir or tempfile.mkdtemp(prefix="alienqa_"))
         planner = ActionPlanner(ExploreBudget(max_steps=self.max_actions))
