@@ -35,6 +35,8 @@ def test_index_renders(tmp_path):
     html = client.get("/").get_data(as_text=True)
     assert "运行扫描" in html
     assert "测试单元" in html
+    assert "单元指令" in html
+    assert "入口文件" not in html  # 已改为智能识别，不再暴露输入框
 
 
 def test_history_renders(tmp_path):

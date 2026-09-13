@@ -14,9 +14,6 @@
   <label>单元指令（针对该单元的具体要求，可选）</label>
   <textarea id="instructions" name="instructions" rows="3" placeholder="例如：输入错误密码应显示错误提示；输入正确密码应跳转首页">{{ settings.instructions }}</textarea>
 
-  <label>入口文件（静态项目默认 index.html）</label>
-  <input type="text" id="entry" name="entry" value="index.html">
-
   <div style="margin-top:1em;"><button type="submit">开始扫描</button></div>
 </form>
 <div id="status" style="margin-top:1em;"></div>
@@ -88,7 +85,6 @@ document.getElementById('run-form').onsubmit = async function (ev) {
     project_path: document.getElementById('project_path').value.trim(),
     unit: document.getElementById('unit').value.trim(),
     instructions: document.getElementById('instructions').value.trim(),
-    entry: document.getElementById('entry').value.trim() || 'index.html',
   };
   const st = document.getElementById('status');
   st.innerHTML = '<span class="badge running">启动中…</span>';

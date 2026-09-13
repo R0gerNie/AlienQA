@@ -10,7 +10,7 @@ from string import ascii_uppercase
 from flask import Flask, jsonify, render_template, request, send_file
 
 from ..llm import LLMClient, load_config
-from ..loader import Project, VisibleFile
+from ..loader import EntryDetector, Project, VisibleFile
 from ..pipeline import AlienQAPipeline
 from ..review import Decision, ReportBuilder
 from .runs import RunManager
@@ -77,6 +77,7 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
     app.config["runs"] = runs
     app.config["providers"] = providers
     app.config["report_builder"] = ReportBuilder(LLMClient(config))
+    app.config["entry_detector"] = EntryDetector(LLMClient(config))
     app.config["jobs"] = {}
     app.config["running"] = False
 
@@ -115,7 +116,6 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
         project_path = (data.get("project_path") or "").strip()
         unit = (data.get("unit") or "").strip()
         instructions = (data.get("instructions") or "").strip()
-        entry = (data.get("entry") or "").strip().lstrip("/") or "index.html"
         if not project_path:
             return jsonify({"error": "缺少项目路径"}), 400
         if not Path(project_path).is_dir():
@@ -124,6 +124,8 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
         settings.unit = unit
         settings.instructions = instructions
         store.save(settings)
+        # 01+ 智能识别入口文件（全局 / 按单元语义）
+        entry = app.config["entry_detector"].detect(project_path, unit, instructions)
         rec = runs.create(project_path, unit, entry, instructions)
         _start_job(app, rec, project_path, entry)
         return jsonify({"run_id": rec.id})

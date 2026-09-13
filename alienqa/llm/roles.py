@@ -85,6 +85,23 @@ class LlmRoles:
             text += "\n\n注意：你上一次的输出不是合法 JSON。这次只输出一个合法 JSON 对象。"
         return self.client.complete(Role.GIST, [{"role": "user", "content": text}]).text
 
+    # A4 入口文件识别（低温度，复用 GIST，结构化输出）：给 01+
+    def detect_entry(self, unit: str, instructions: str, candidates: list, repair: bool = False) -> str:
+        lines = "\n".join(f"- {c}" for c in candidates[:100])
+        text = (
+            "你是前端项目结构分析专家。给定项目里发现的 HTML 入口文件清单，以及一个单元描述，"
+            "请从中选出最可能是该单元入口的 HTML 文件。\n"
+            f"单元：{unit}\n"
+            f"指令：{instructions or '（无）'}\n\n"
+            f"候选入口文件：\n{lines}\n\n"
+            "严格输出一个 JSON 对象（不要 markdown、不要多余文字）：\n"
+            '{"entry": "选中的相对路径"}\n'
+            "entry 必须完整照抄候选清单里的某一个路径。"
+        )
+        if repair:
+            text += "\n\n注意：你上一次的输出不是合法 JSON。这次只输出一个合法 JSON 对象。"
+        return self.client.complete(Role.GIST, [{"role": "user", "content": text}]).text
+
     # B 预期生成（高温度，采样取并集）：给 08
     def generate_expectations(self, gist: str, page_text: str, samples: int = 2, focus: str = "") -> list:
         intro = (

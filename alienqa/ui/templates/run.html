@@ -5,7 +5,7 @@
   <tr><th>项目路径</th><td>{{ rec.project_path or '—' }}</td></tr>
   <tr><th>测试单元</th><td>{{ rec.unit or '—' }}</td></tr>
   <tr><th>单元指令</th><td>{{ rec.instructions or '—' }}</td></tr>
-  <tr><th>入口文件</th><td>{{ rec.entry or '—' }}</td></tr>
+  <tr><th>入口文件（自动识别）</th><td>{{ rec.entry or '—' }}</td></tr>
   <tr><th>状态</th><td><span class="badge {{ rec.status }}">{{ rec.status }}</span></td></tr>
   <tr><th>开始 / 结束</th><td>{{ rec.started_at }} / {{ rec.finished_at or '—' }}</td></tr>
   <tr><th>证据 / Issue / 采信</th><td>{{ rec.evidence_count }} / {{ rec.issue_count }} / {{ rec.accepted_count }}</td></tr>
