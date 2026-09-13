@@ -27,6 +27,32 @@
 
 ---
 
+## 1.1 b 系列：浏览器黑盒模式（无源码 QA）
+
+> 目标：**没有完整源码、只能从浏览器看到前端时，完成完整 QA**。只适配「读源码」的三个环节，其余模块原样复用。
+
+| 变体 | 原模块 | 差异 |
+|------|--------|------|
+| [01b Project Loader (Browser)](01b-project-loader-browser.md) | 01 | 不扫磁盘，只给 URL，`visible_files=[]` |
+| [02b Product Mapper (Browser)](02b-product-mapper-browser.md) | 02 | 表面来源换成 `driver.visible_text()`，LLM 概括流程复用 |
+| [11b Investigation (Browser)](11b-investigation-browser.md) | 11 | 关闭源码通道，靠 DOM / console / network 反推 |
+
+```mermaid
+flowchart LR
+    IN["输入<br/>一个可达 URL"] --> PL["01b 黑盒装载"]
+    PL --> PM["02b 黑盒产品地图<br/>(页面文字 → gist/map)"]
+    PM --> EC["03 认知防火墙"]
+    EC --> AP["06 规划"] --> BC["04 浏览器"]
+    BC --> ST["05 状态"] & OE["07 观察"]
+    OE --> EE["08 预期"] --> EV["09 证据"] --> DD["10 去重"]
+    DD --> IA["11b 黑盒调查<br/>(DOM/console/network)"]
+    IA --> HR["12 报告"]
+```
+
+> 03~10、12、13 全部复用原模块，无 b 变体；01+ 的 UnitLocator / EntryDetector 中，入口检测在黑盒下不需要（URL 即入口），单元定位照常基于 DOM。
+
+---
+
 ## 2. 全局数据流
 
 ```mermaid
