@@ -1,0 +1,30 @@
+# AlienQA LLM 配置：三角色可独立轮换到任意 LiteLLM 支持的模型。
+# 密钥一律通过环境变量提供（OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY /
+# DASHSCOPE_API_KEY / DEEPSEEK_API_KEY / ...），不写入本文件。
+
+llm:
+  default_provider: openai        # 裸模型名（不含 /）默认挂到此 provider
+  request_timeout: 120
+
+  roles:
+    gist:                          # A 主旨加载：便宜快速、低温度
+      model: gpt-4o-mini
+      temperature: 0.1
+      fallbacks: []                # 失败时自动回退（可轮换）
+    expectation:                   # B 预期生成：高温度、采样取并集
+      model: gpt-4o-mini
+      temperature: 0.8
+      fallbacks: []
+    judge:                         # C 盲判：强视觉模型
+      model: gpt-4o
+      temperature: 0.2
+      fallbacks: []
+
+# 轮换示例（把上面 model 换成任意一行即可，配置驱动、零代码改动）：
+#   OpenAI:      gpt-4o / gpt-4o-mini / gpt-4.1
+#   Anthropic:   anthropic/claude-3-5-sonnet-20241022
+#   Google:      gemini/gemini-2.5-pro
+#   阿里 Qwen:   dashscope/qwen-vl-max
+#   智谱 GLM:    openai/glm-4v-plus（需 OPENAI_API_BASE 指向 bigmodel 网关）
+#   DeepSeek:    deepseek/deepseek-chat
+#   本地 Ollama: ollama/llama3
