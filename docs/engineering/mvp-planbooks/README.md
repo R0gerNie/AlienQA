@@ -1,6 +1,6 @@
 # AlienQA 功能 MVP 工程 Planbook
 
-版本：2026-10-02-mvp-14。状态：T01 F01～F07/F09 已统一应用基准、运行入口、字面量路由、静态产物/部署与本机兼容证据，F08 后置；T04、T03、T06、T08 工程范围已接通；T02 主页面交互/状态/轨迹及锁版本框架机制路径已实现，frame/shadow 只检测并说明覆盖；T05 E01～E07 的回放/分组/调查功能 MVP 已实现；T07 共享输入、终态核对、历史及本机安装包完整路径已接通；新增 Codex 登录接口与有界运行器。N03 校准 C01～C05 已实现，C06 离线对照及版本化真实复跑分别留存；T09 已实现成对样例、分层验收、独立依赖安装工具与实验性发布说明；独立人审、真实应用模型效果与发布效果 gate 仍开放。详见[T01 实施记录](../t01-implementation.md)、[T07 实施记录](../t07-implementation.md)、[T05 实施记录](../t05-implementation.md)、[T02 实施记录](../t02-implementation.md)、[T04 实施记录](../t04-implementation.md)、[T03 实施记录](../t03-implementation.md)、[T06 实施记录](../t06-implementation.md)、[T08 实施记录](../t08-implementation.md)、[N06 首轮结果](../n06-first-results.md)、[N03 校准记录](../n03-calibration-results.md)。
+版本：2026-10-02-mvp-15。状态：T01 F01～F07/F09 已统一应用基准、运行入口、字面量路由、静态产物/部署与本机兼容证据，F08 后置；T04、T03、T06、T08 工程范围已接通；T02 主页面交互/状态/轨迹及锁版本框架机制路径已实现，frame/shadow 只检测并说明覆盖；T05 E01～E07 的回放/分组/调查功能 MVP 已实现；T07 共享输入、终态核对、历史及本机安装包完整路径已接通；新增 Codex 登录接口与有界运行器。N03 校准 C01～C05 已实现，C06 离线对照及版本化真实复跑分别留存；T09 已实现成对样例、分层验收、独立依赖安装工具与实验性发布说明；独立人审、真实应用模型效果与发布效果 gate 仍开放。详见[T01 实施记录](../t01-implementation.md)、[T07 实施记录](../t07-implementation.md)、[T05 实施记录](../t05-implementation.md)、[T02 实施记录](../t02-implementation.md)、[T04 实施记录](../t04-implementation.md)、[T03 实施记录](../t03-implementation.md)、[T06 实施记录](../t06-implementation.md)、[T08 实施记录](../t08-implementation.md)、[N06 首轮结果](../n06-first-results.md)、[N03 校准记录](../n03-calibration-results.md)。
 适用对象：独立开发者，单人本机使用。用户在本次讨论中明确：
 
 > “先做功能层MVP”
@@ -144,4 +144,6 @@ classification 与 finding_kind 分别表示现有表象分类与证据来源，
 
 T09 的样例、评估/人工审核资产、分级 CI、干净安装和支持范围已实施，固定 TodoMVC 的机制与独立回放已验收；最终证据及限制见 [T09 记录](../t09-implementation.md)与[兼容/发布状态](../compatibility-and-release.md)。下一阶段优先 N06/C06/K06/V03 的有预算真实复跑与独立人审，不自动追加框架广覆盖或企业功能。
 
-T09 本机最终证据：完整回归 745 项与最终定向补充 25 项去重共 749 项，合并覆盖率 88.20%；24 条固定框架路径、固定 TodoMVC 独立回放及 wheel/sdist 两套新依赖完整路径通过。本轮模型调用 0，机器 release_ready=false；真实模型、人审、试用和远程 CI 分开验收。
+T09 提交前工程证据：完整回归 745 项与最终定向补充 25 项去重共 749 项，合并覆盖率 88.20%；24 条固定框架路径、固定 TodoMVC 独立回放及 wheel/sdist 两套新依赖完整路径通过。当时模型调用 0，机器 release_ready=false。
+
+提交后已完成远程默认回归/干净安装及新批真实基线，输入/失焦合并与 Enter 探索按实际缺口修复；同配置复测、计量对账及预先冻结的门槛见 [T09 真实基线记录](../t09-real-baseline-results.md)。独立人审与有效性 gate 仍需真实参与者提供结论和审阅分钟。
