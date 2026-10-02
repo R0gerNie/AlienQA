@@ -14,6 +14,7 @@
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[dev]' -c requirements-dev.lock
+export PLAYWRIGHT_BROWSERS_PATH="$PWD/.venv/browsers"
 python -m playwright install chromium
 ```
 

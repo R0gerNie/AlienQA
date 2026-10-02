@@ -10,6 +10,8 @@ on:
         default: false
 permissions:
   contents: read
+env:
+  PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.venv/browsers
 jobs:
   test:
     runs-on: ubuntu-latest

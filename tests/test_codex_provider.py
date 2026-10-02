@@ -40,7 +40,9 @@ def rig(tmp_path, monkeypatch):
 
         def communicate(self, input=None, timeout=None):
             self.input, self.timeout = input, timeout
-            self.images = [path.read_bytes() for path in self.directory.glob('*.png')]
+            from pathlib import Path
+            self.images = [Path(self.args[index + 1]).read_bytes()
+                           for index, argument in enumerate(self.args) if argument == '--image']
             self.instructions = (self.directory / "instructions.txt").read_text()
             item = behavior.pop(0)
             if isinstance(item, Exception):
@@ -84,7 +86,10 @@ def test_six_roles_use_existing_login_with_isolated_context(rig, role, monkeypat
     assert settings["reasoning_effort"] == "low"
 
 
-def test_vision_passes_images_as_local_attachments_without_base64_prompt(rig):
+def test_vision_passes_images_as_local_attachments_without_base64_prompt(rig, monkeypatch):
+    from pathlib import Path
+    original_glob = Path.glob
+    monkeypatch.setattr(Path, 'glob', lambda directory, pattern: iter(reversed(list(original_glob(directory, pattern)))))
     rig.client.complete_vision("judge", "compare", [b"first-image", b"second-image"])
     call = rig.calls[0]
     assert call.images == [b"first-image", b"second-image"]
