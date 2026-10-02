@@ -1,0 +1,29 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Settings</title>
+<style>body{font:18px sans-serif;margin:36px}button{font:inherit;margin:8px;padding:8px}[role=dialog]{border:1px solid;padding:16px}</style>
+<h1>Settings</h1><main id="controls"></main><p id="status" role="status" aria-live="polite"></p>
+<script>
+const params=new URLSearchParams(location.search),family=params.get('case')||'save',variant=Number(params.get('variant')||1);
+const controls=document.querySelector('#controls'),status=document.querySelector('#status');
+function button(id,text,handler,parent=controls){const b=document.createElement('button');b.id=id;b.textContent=text;b.onclick=handler;parent.append(b);return b}
+function result(text){status.textContent=text}
+if(family==='save'||family==='history'){
+ const save=button('save','Save',async()=>{
+  if(variant===2)throw new TypeError('T09 save handler unavailable');
+  if(variant===3){await fetch('/api/result?status=422');result('Please enter email');return}
+  save.textContent='Saved';save.disabled=true;
+  if(family==='history'){const next=button('next','Save next item',()=>{next.textContent='Next item saved';next.disabled=true})}
+ });
+}else if(family==='delete'){
+ result('Item ready');button('delete','Delete item',()=>{const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.setAttribute('aria-label','Delete item?');controls.append(dialog);
+ button('confirm','Confirm deletion',()=>{dialog.remove();if(variant!==2)result('Item removed')},dialog);
+ button('cancel','Cancel',()=>{dialog.remove();result('Deletion cancelled')},dialog)});
+}else if(family==='filter'){
+ result(variant===3?'No items yet':'One item');button('filter','Show archived',()=>{if(variant===1)result('No matching items')});
+}else if(family==='modal'){
+ button('open','Open preferences',()=>{if(variant===2)return;const dialog=document.createElement('section');dialog.setAttribute('role','dialog');dialog.setAttribute('aria-label','Preferences');dialog.textContent='Preferences';controls.append(dialog);button('close','Close',()=>{dialog.remove();result('Dialog closed')},dialog)});
+}else if(family==='navigation'){
+ result('Home');button('details','Details',()=>{if(variant===2)return;history.pushState({},'',location.pathname+location.search+'#details');result('Details');if(variant===3)button('back','Back',()=>{history.replaceState({},'',location.pathname+location.search);result('Home')})});
+}else if(family==='technical'){
+ button('load','Load settings',async()=>{const code=variant===2?500:variant===3?401:200;await fetch('/api/result?status='+code);if(code===500)throw new TypeError('T09 load handler unavailable');result(code===401?'Please sign in':'Loaded')});
+}
+</script></html>

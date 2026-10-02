@@ -1,9 +1,9 @@
 # 技术子计划 09：样例、分层验证、兼容矩阵与发布
 
-状态：待实施工程计划。日期：2026-10-01。父节点：[V01～V05](../04-validation-and-release.md)，服务独立开发者的 QA 与一般用户认知分析。
+状态：Q01～Q03 工程实现及浏览器验收已落地；Q04 的 runner/审核与统计资产已实现，真实模型及独立人审开放；Q05 wheel/sdist 两套新依赖环境完整路径已验收；Q06/Q07 分级 CI、支持范围与实验性 gate 已落盘，远程 CI 和效果/试用门槛开放。日期：2026-10-02。记录：[T09 实施](../../t09-implementation.md)。父节点：[V01～V05](../04-validation-and-release.md)，服务独立开发者的 QA 与一般用户认知分析。
 本节点消费 J/R/L 的产品契约和技术子计划产物，不另建 Evidence、Decision、SQLite 或报告接口。
 Q01～Q07 是 V 的工程分解；不以大型三框架仓库、岗位画像、多人审核或 PDF 为 MVP 的进入条件。
-本轮只读核对文件并落盘计划，不执行测试、构建、npm、付费模型或外部网络。
+本轮实施执行离线回归、实际浏览器、锁版本框架/外部小应用构建及新环境安装；未启动真实模型。模型调用需显式预算，独立人审不能由自动回归代填。
 
 ## 1. 当前证据与缺口
 
@@ -18,8 +18,8 @@ Q01～Q07 是 V 的工程分解；不以大型三框架仓库、岗位画像、�
 | `MANIFEST.in` / setuptools | sdist 包含 lock/docs/tests 的 py/html；wheel 包含两套模板及 share/alienqa/config.yaml | 新框架 fixture 的 json/js/tsx/vue 等目前不会自动进 sdist；wheel 外测试资产需明确来源 |
 | `.github/workflows/tests.yml` | Ubuntu Python 3.11/3.13，安装 Chromium、默认 pytest/coverage 和 build | 远程执行证据、clean wheel/sdist 安装 smoke、可选框架 job 与版本化结果 |
 
-历史记录为 302 项测试、85.88% 覆盖率及构建/pip check 通过；本轮未重跑，不能把历史数字当作下列新增任务的完成证据。
-真实模型效果尚未验收。现有 stub 能验证输入和失败机制，不能证明模型懂一般用户，也不能证明目标应用没有问题。
+上表保留任务拆解时的缺口快照，不作为当前完成状态。实施前 T01 去重 694 项、覆盖率 88.30%；本轮新增 19 个成对/历史场景、真实生产管线替身和固定 TodoMVC 浏览器基线。T02/T01 的真实框架及 sdist 多类型资产已存在，Q02 直接复用，不重复建设。最终回归和安装数字见实施记录。
+历史 N06/C06 已有真实控制批次；本轮真实小应用模型效果、独立人审和开发者有效性尚未验收。现有 stub 能验证输入和失败机制，不能证明模型懂一般用户，也不能证明目标应用没有问题。
 
 ## 2. 验证资产与接口边界
 
@@ -29,7 +29,7 @@ Q01～Q07 是 V 的工程分解；不以大型三框架仓库、岗位画像、�
 | 拟增资产 | 最小内容 / 规则 |
 |---|---|
 | `tests/fixtures/cases/manifest.json` | case_id、版本、正常/异常配对、入口、可达动作、初始化/重置、环境依赖、可观察断言；故障注入答案不进产品输入 |
-| `tests/fixtures/frameworks/*` | 版本化最小 React/Vite、Vue/Vite、Next App/Pages；锁文件、启动 URL、构建/服务与清理配方；复用 T01 的固定样例 |
+| `tests/fixtures/framework-mechanisms/*` | 版本化最小 React/Vite、Vue/Vite、Next App/Pages；锁文件、启动 URL、构建/服务与清理配方；复用 T02/T01 的固定样例 |
 | 评估侧 labels / goldens | 原始事实、可接受反馈、合理例外和标注理由；与产品 Decision 分离，关联 run/Evidence ID，不引入新产品状态 |
 | 可选评估 runner | 固定 manifest、配置/prompt、重复序号、动作/时间和调用预算；明示当前是否有硬费用上限，不伪造不存在的限制 |
 | 结果包 | 原始 run/checkpoint、角色输入输出引用、Evidence、回放、决定/备注、attempt 汇总、审核时长、环境/版本和限制 |
@@ -52,8 +52,8 @@ Q01～Q07 是 V 的工程分解；不以大型三框架仓库、岗位画像、�
 
 ### Q02：核心框架最小运行夹具（M1 准备，M2 执行）
 
-- **父任务/落点**：L02/L04、V01/V03；`tests/fixtures/frameworks/`、新增框架 smoke runner，复用 [T01 F04/F05/F09](01-project-framework-compatibility.md)。
-- **当前→增量**：合成 package/目录识别测试保留；另建真正 React/Vite、Vue/Vite、Next App/Pages 小应用，执行框架构建/运行，避免静态 HTML 被称为框架验证。
+- **父任务/落点**：L02/L04、V01/V03；`tests/fixtures/framework-mechanisms/`、既有框架 smoke runner，复用 T02 与 [T01 F04/F05/F09](01-project-framework-compatibility.md)。
+- **当前→增量**：合成 package/目录识别测试保留；复用已实现的 React/Vite、Vue/Vite、Next App/Pages 小应用与构建/运行路径，避免静态 HTML 被称为框架验证。T09 新增固定 TodoMVC 外部小应用，源码、依赖和产物仅在项目内忽略目录。
 - **机制范围**：客户端路由与返回、hash/history、受控表单、异步保存、modal、hydration 后操作；Next root/src、group/dynamic 样例按 T01 限定版本，不扩成所有 Router 组合。
 - **固定资产**：各 fixture 锁定版本、包管理器、构建/启动方式、实际 URL、重置及停止方式；异常和正常实现复用 Q01 语义，预期答案放评估侧。
 - **依赖**：F02 选中应用/cwd、F03 URL、F06/F07 产物/深链；只在显式 smoke 中由执行者按配方安装/构建，AlienQA 正常扫描不自动 npm install。
@@ -81,7 +81,7 @@ Q01～Q07 是 V 的工程分解；不以大型三框架仓库、岗位画像、�
 
 - **父任务/落点**：L01/L05、V04；`pyproject.toml`、`MANIFEST.in`、`requirements-dev.lock`、CLI 配置定位、模板和拟增安装 smoke。
 - **当前→增量**：补 sdist 的新增 fixture 资产白名单（json/js/tsx/vue/锁文件等）；保持排除 node_modules/构建缓存。wheel 包运行所需配置/模板，不要求携带全部测试仓库。
-- **安装规则**：第二个干净虚拟环境分别安装 wheel 与从 sdist 构建的 wheel，在仓库外目录执行；确认导入路径为安装包，不能被源码 pythonpath 掩盖缺资产。
+- **安装规则**：分别创建两套干净虚拟环境安装 wheel 与从 sdist 构建的 wheel，在项目内 gitignored 的独立空工作目录执行，与源码 PYTHONPATH 分离；确认导入路径为安装包，不能被源码掩盖缺资产。外部源码、依赖、缓存和结果全部留在项目内。
 - **smoke 资产**：受控测试页面从版本对应测试资产/解压 sdist 提供，URL 显式输入；不依赖安装包旁边存在 tests，也不依赖开发者原 `.venv/browsers` 路径。
 - **依赖/验收**：消费 Q03/T06/T07；核对 config fallback、主/独立审核模板、URL+登录态、停止、历史重启、回放、决定、离线 HTML 及 pip check；sdist 文件清单能还原默认自包含回归。
 - **发布文本**：更新包 description 与 README 至“一般用户认知分析”的已定范围，写清浏览器安装与私有会话保管；不能以 build 成功代替安装后运行证据。

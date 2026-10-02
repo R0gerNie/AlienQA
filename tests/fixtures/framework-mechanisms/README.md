@@ -19,6 +19,8 @@ T05 复用相同版本并新增四条表单→提交→客户端导航→异常�
 
 实际验证范围和限制见 [T02 实施记录](../../../docs/engineering/t02-implementation.md)。
 
+T09 Q02 直接消费本目录和 T01 的 24 条实际路径，避免另建一套依赖/框架 smoke。默认、框架与外部应用验收分别启用；异常与正常对照不进入角色答案。分层证据见 [T09](../../../docs/engineering/t09-implementation.md)。
+
 ## T01 源码/产物/部署增量
 
 `next-src/` 是自编的 src、route group 与动态 App/Pages 补充；精确依赖和锁文件复用上述 Next fixture。`scripts/prepare_t01_frameworks.py` 将源文件派生到项目内忽略的 `examples/open-source/t01-frameworks/apps/web`，只构建、不安装，依赖链接指向同项目 T02 工作区。该配方包含 Turbopack root 设置，不是任意目录模板。

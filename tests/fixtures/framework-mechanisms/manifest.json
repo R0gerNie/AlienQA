@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "purpose": "T02 browser mechanics and T05 independent fault replay; model accuracy is evaluated separately",
+  "purpose": "T02/T01 locked browser mechanics, T05 independent fault replay and T09 Q02 reuse; model accuracy is evaluated separately",
   "dependencies": {
     "react": "19.3.0",
     "react-dom": "19.3.0",

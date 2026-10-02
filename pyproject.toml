@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "alienqa"
 version = "0.1.0"
-description = "AlienQA：让没有经过教育的内测用户（裸 LLM）从外部上帝视角自动探索前端，产出疑似问题证据的测试工具"
+description = "AlienQA：面向独立开发者的本机 QA 与一般用户认知分析，提供可回放证据、人工审核和离线报告"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

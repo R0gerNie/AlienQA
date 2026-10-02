@@ -7,8 +7,11 @@ import argparse
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
+import math
 import sys
 
+from .acceptance import load_manifest, product_input, review_template, serve_cases
+from .local_run import valid_url, validate_session
 from .__main__ import _serve
 from .expectation.contracts import PROMPT_VERSION
 from .expectation.sampling import MERGE_VERSION
@@ -90,14 +93,26 @@ def summarize_records(rows):
             "judge_failed_steps": sum(step.get("judge_failed", False) for step in steps),
             "inconclusive_steps": counts["inconclusive"], "failed_steps": counts["failed"],
             "unreviewed_runs": sum(row.get("assessment") == "pending" for row in rows),
-            "n06_closed": False, "real_application_evaluated": False,
+            "n06_closed": False,
+            "real_application_attempted_runs": sum(row.get('case_type')=='real_application' and row['status']!='not_started' for row in rows),
+            "real_application_completed_runs": sum(row.get('case_type')=='real_application' and row['status']=='completed' for row in rows),
+            "real_application_evaluated": any(row.get('case_type')=='real_application' and row.get('steps') for row in rows),
             "notice": "控制样例结果不等于准确率；未决、失败和未执行均保留。真实应用和人工复核另行验收。"}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="N06 控制样例的有界真实模型验收")
     parser.add_argument("--config", default="config/codex.yaml")
+    parser.add_argument("--inference-kind", choices=('real','substitute'), default='real',
+                        help="Declare provider provenance; substitute runs never certify model quality")
     parser.add_argument("--fixtures", default="tests/fixtures")
+    parser.add_argument("--manifest", help="Versioned paired-case manifest; evaluator labels stay private")
+    parser.add_argument("--cases", nargs="+", help="Explicit manifest case IDs")
+    parser.add_argument("--real-app", help="Already running small real application URL")
+    parser.add_argument("--app-version", help="Exact upstream version/commit for real application")
+    parser.add_argument("--app-reset", help="Reproducible initialization/reset recipe for real application")
+    parser.add_argument("--app-actions", type=int, default=5)
+    parser.add_argument("--storage-state", default="")
     parser.add_argument("--output", required=True, help="新的验收结果目录")
     parser.add_argument("--max-calls", type=int, required=True, help="所有 run 共用的供应商请求/CLI 启动上限")
     parser.add_argument("--repeats", type=int, default=1)
@@ -106,49 +121,86 @@ def main(argv=None):
                         help="选择控制样例，用于明确标记的定向对照")
     parser.add_argument("--max-seconds", type=float, default=600)
     args = parser.parse_args(argv)
-    if min(args.max_calls, args.repeats, args.samples) < 1 or args.max_seconds <= 0:
+    if min(args.max_calls, args.repeats, args.samples, args.app_actions) < 1 or not math.isfinite(args.max_seconds) or args.max_seconds <= 0:
         parser.error("预算、重复、采样及时间必须大于零")
+    if args.real_app and (not valid_url(args.real_app) or not args.app_version or not args.app_reset):
+        parser.error("Real app requires HTTP URL, exact version and explicit reset recipe")
+    if args.cases and not args.manifest:
+        parser.error("--cases requires --manifest")
+    try:
+        validate_session(args.storage_state)
+        paired = load_manifest(args.manifest) if args.manifest else None
+    except (ValueError, OSError) as exc:
+        parser.error(str(exc))
     directory = Path(args.output)
     if directory.exists() and any(directory.iterdir()):
         parser.error("验收目录已有产物，请使用新的目录")
     fixtures = Path(args.fixtures).resolve()
-    if not (fixtures / "cognition-app" / "index.html").is_file():
+    if not paired and not (fixtures / "cognition-app" / "index.html").is_file():
         parser.error("缺少 cognition-app 控制样例；请指定 --fixtures")
     config = load_config(args.config)
     directory.mkdir(parents=True, exist_ok=True)
-    cases = [case for case in control_cases(args.repeats) if case["variant"] in args.variants]
+    if paired:
+        selected = [c for c in paired['cases'] if not args.cases or c['id'] in args.cases]
+        if args.cases and set(args.cases) != {c['id'] for c in selected}:
+            parser.error("Unknown manifest case ID")
+        cases = [{**case, 'case_id': case['id'], 'id': f'case-{index:03d}-run-{repeat}',
+                  'repeat': repeat, 'case_type': 'paired_control'}
+                 for repeat in range(1, args.repeats+1) for index, case in enumerate(selected,1)]
+    else:
+        cases = [case for case in control_cases(args.repeats) if case["variant"] in args.variants]
+    if args.real_app:
+        cases += [{'id': f'real-application-run-{repeat}', 'case_id': 'real-application',
+                   'case_type': 'real_application', 'version': args.app_version, 'reset': args.app_reset,
+                   'entry_url': args.real_app, 'max_actions': args.app_actions, 'repeat': repeat}
+                  for repeat in range(1, args.repeats+1)]
     budget = InvocationBudget(args.max_calls)
     manifest = {"schema_version": 2, "prompt_version": PROMPT_VERSION, "merge_version": MERGE_VERSION,
+                "inference_kind": args.inference_kind,
                 "judge_prompt_version": "judgment-v2", "config": public_value(asdict(config)),
-                "fixture": "cognition-app", "samples": args.samples, "max_calls": args.max_calls,
+                "fixture": paired["version"] if paired else "cognition-app", "samples": args.samples, "max_calls": args.max_calls,
                 "max_seconds_per_run": args.max_seconds, "cases": cases,
                 "reference_policy": "references stay here and are never passed to pipeline/model prompts"}
+    manifest["manifest_source"] = str(Path(args.manifest).resolve()) if args.manifest else None
     atomic_write_json(directory / "manifest.json", manifest)
     records = [{**case, "status": "not_started", "steps": [], "assessment": "pending"} for case in cases]
 
     def checkpoint():
         atomic_write_json(directory / "evaluation.json", {"schema_version": 2, "invocations_used": budget.used,
+                          "inference_kind": args.inference_kind,
                           "runs": records, "summary": summarize_records(records)})
+        atomic_write_json(directory / "review-template.json", review_template(records, cases))
 
     checkpoint()
     server = None
     try:
-        server, base_url = _serve(str(fixtures))
+        if paired:
+            public = Path(args.manifest).resolve().parent / paired.get('public_directory', 'public')
+            server, base_url = serve_cases(public)
+        else:
+            server, base_url = _serve(str(fixtures))
         for row in records:
             if budget.used >= budget.maximum:
                 row["not_started_reason"] = "invocation_budget"
                 checkpoint()
                 continue
             run_dir = directory / row["id"]
-            url = f"{base_url}/cognition-app/index.html?variant={row['variant']}"
+            if row['case_type'] == 'real_application':
+                url = row['entry_url']
+            elif paired:
+                url = product_input(row, base_url)['url']
+            else:
+                url = f"{base_url}/cognition-app/index.html?variant={row['variant']}"
             row.update(status="running", url=url, run_dir=row["id"])
             checkpoint()
             pipeline = AlienQAPipeline(config, samples=args.samples, max_actions=row["max_actions"],
-                                       max_seconds=args.max_seconds, browser="chromium", artifacts_dir=run_dir, verbose=False)
+                                       max_seconds=args.max_seconds, browser="chromium", artifacts_dir=run_dir, verbose=False,
+                                       run_dir=run_dir, run_id=row["id"], unit=row.get("unit", ""))
             pipeline.client.before_request = budget.reserve
             try:
-                result = pipeline.collect(ProjectLoader().load_browser(url))
-                result.save(run_dir)
+                result = pipeline.collect(ProjectLoader().load_browser(url, storage_state=args.storage_state))
+                if load_snapshot(run_dir) is None:
+                    result.save(run_dir)
                 saved = load_snapshot(run_dir)
                 context = {key: saved[key] for key in ("run_id", "checkpoint_seq", "phase", "stop_reason", "incomplete", "steps", "scope")}
                 context.update(run_dir=str(run_dir.resolve()), status="partial" if result.incomplete else "done",
@@ -159,8 +211,8 @@ def main(argv=None):
                 report = ReportBuilder(pipeline.client).build(result.evidences, state, result.investigations,
                                   diagnostics=result.review_diagnostics, mode="analysis", scan_context=context)
                 atomic_write_bytes(run_dir / "analysis.html", report.html.encode("utf-8"))
-                row.update(status="partial" if result.incomplete else "completed", run_id=result.run_id,
-                           stop_reason=result.stop_reason, steps=[evaluation_step(step) for step in result.steps],
+                row.update(status="partial" if saved["incomplete"] else "completed", run_id=saved["run_id"], checkpoint_seq=saved["checkpoint_seq"],
+                           stop_reason=saved["stop_reason"], steps=[evaluation_step(step) for step in saved["steps"]],
                            evidence_counts=dict(Counter(ev.finding_kind for ev in result.evidences)), diagnostics=result.review_diagnostics)
                 try:
                     close_unfinished(run_dir, result.run_id, row["status"])
@@ -169,6 +221,15 @@ def main(argv=None):
                 row["usage"] = load_summary(run_dir, result.run_id)
             except Exception as exc:
                 row.update(status="error", error=public_text(exc))
+                try:
+                    saved = load_snapshot(run_dir)
+                    if saved:
+                        row.update(run_id=saved['run_id'], checkpoint_seq=saved['checkpoint_seq'],
+                                   steps=[evaluation_step(step) for step in saved['steps']], stop_reason=saved['stop_reason'])
+                        close_unfinished(run_dir, saved['run_id'], 'error')
+                        row['usage'] = load_summary(run_dir, saved['run_id'])
+                except (OSError, ValueError) as recovery:
+                    row['recovery_error'] = public_text(recovery)
             checkpoint()
             print(f"[evaluation] {row['id']}: {row['status']}；调用 {budget.used}/{budget.maximum}", flush=True)
     except KeyboardInterrupt:

@@ -1,0 +1,713 @@
+{
+  "schema_version": 1,
+  "version": "t09-cases-v1",
+  "purpose": "Evaluator-side paired acceptance; never inject labels into product prompts",
+  "public_directory": "public",
+  "cases": [
+    {
+      "id": "save-normal",
+      "version": "1",
+      "family": "save",
+      "variant_kind": "normal",
+      "entry": "index.html?case=save&variant=1",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#save"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#save",
+          "value": "Saved"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_SAVE_NORMAL",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "save-abnormal",
+      "version": "1",
+      "family": "save",
+      "variant_kind": "abnormal",
+      "entry": "index.html?case=save&variant=2",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#save"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#save",
+          "value": "Save"
+        },
+        {
+          "kind": "page_error",
+          "value": "T09 save handler unavailable"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_SAVE_ABNORMAL",
+        "known_problem": true,
+        "acceptable_alternatives": []
+      }
+    },
+    {
+      "id": "save-exception",
+      "version": "1",
+      "family": "save",
+      "variant_kind": "reasonable_exception",
+      "entry": "index.html?case=save&variant=3",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#save"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "Please enter email"
+        },
+        {
+          "kind": "http_status",
+          "value": 422
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_SAVE_EXCEPTION",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "delete-normal",
+      "version": "1",
+      "family": "delete",
+      "variant_kind": "normal",
+      "entry": "index.html?case=delete&variant=1",
+      "max_actions": 2,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#delete"
+          }
+        },
+        {
+          "type": "click",
+          "target": {
+            "selector": "#confirm"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "Item removed"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_DELETE_NORMAL",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "delete-abnormal",
+      "version": "1",
+      "family": "delete",
+      "variant_kind": "abnormal",
+      "entry": "index.html?case=delete&variant=2",
+      "max_actions": 2,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#delete"
+          }
+        },
+        {
+          "type": "click",
+          "target": {
+            "selector": "#confirm"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "Item ready"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_DELETE_ABNORMAL",
+        "known_problem": true,
+        "acceptable_alternatives": []
+      }
+    },
+    {
+      "id": "delete-exception",
+      "version": "1",
+      "family": "delete",
+      "variant_kind": "reasonable_exception",
+      "entry": "index.html?case=delete&variant=3",
+      "max_actions": 2,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#delete"
+          }
+        },
+        {
+          "type": "click",
+          "target": {
+            "selector": "#cancel"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "Deletion cancelled"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_DELETE_EXCEPTION",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "filter-normal",
+      "version": "1",
+      "family": "filter",
+      "variant_kind": "normal",
+      "entry": "index.html?case=filter&variant=1",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#filter"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "No matching items"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_FILTER_NORMAL",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "filter-abnormal",
+      "version": "1",
+      "family": "filter",
+      "variant_kind": "abnormal",
+      "entry": "index.html?case=filter&variant=2",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#filter"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "One item"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_FILTER_ABNORMAL",
+        "known_problem": true,
+        "acceptable_alternatives": []
+      }
+    },
+    {
+      "id": "filter-exception",
+      "version": "1",
+      "family": "filter",
+      "variant_kind": "reasonable_exception",
+      "entry": "index.html?case=filter&variant=3",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#filter"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "No items yet"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_FILTER_EXCEPTION",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "modal-normal",
+      "version": "1",
+      "family": "modal",
+      "variant_kind": "normal",
+      "entry": "index.html?case=modal&variant=1",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#open"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "count",
+          "selector": "[role=dialog]",
+          "value": 1
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_MODAL_NORMAL",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "modal-abnormal",
+      "version": "1",
+      "family": "modal",
+      "variant_kind": "abnormal",
+      "entry": "index.html?case=modal&variant=2",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#open"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "count",
+          "selector": "[role=dialog]",
+          "value": 0
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_MODAL_ABNORMAL",
+        "known_problem": true,
+        "acceptable_alternatives": []
+      }
+    },
+    {
+      "id": "modal-exception",
+      "version": "1",
+      "family": "modal",
+      "variant_kind": "reasonable_exception",
+      "entry": "index.html?case=modal&variant=3",
+      "max_actions": 2,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#open"
+          }
+        },
+        {
+          "type": "click",
+          "target": {
+            "selector": "#close"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "count",
+          "selector": "[role=dialog]",
+          "value": 0
+        },
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "Dialog closed"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_MODAL_EXCEPTION",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "navigation-normal",
+      "version": "1",
+      "family": "navigation",
+      "variant_kind": "normal",
+      "entry": "index.html?case=navigation&variant=1",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#details"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "Details"
+        },
+        {
+          "kind": "url_contains",
+          "value": "#details"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_NAVIGATION_NORMAL",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "navigation-abnormal",
+      "version": "1",
+      "family": "navigation",
+      "variant_kind": "abnormal",
+      "entry": "index.html?case=navigation&variant=2",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#details"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "Home"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_NAVIGATION_ABNORMAL",
+        "known_problem": true,
+        "acceptable_alternatives": []
+      }
+    },
+    {
+      "id": "navigation-exception",
+      "version": "1",
+      "family": "navigation",
+      "variant_kind": "reasonable_exception",
+      "entry": "index.html?case=navigation&variant=3",
+      "max_actions": 2,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#details"
+          }
+        },
+        {
+          "type": "click",
+          "target": {
+            "selector": "#back"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "Home"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_NAVIGATION_EXCEPTION",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "technical-normal",
+      "version": "1",
+      "family": "technical",
+      "variant_kind": "normal",
+      "entry": "index.html?case=technical&variant=1",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#load"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "Loaded"
+        },
+        {
+          "kind": "http_status",
+          "value": 200
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_TECHNICAL_NORMAL",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "technical-abnormal",
+      "version": "1",
+      "family": "technical",
+      "variant_kind": "abnormal",
+      "entry": "index.html?case=technical&variant=2",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#load"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "http_status",
+          "value": 500
+        },
+        {
+          "kind": "page_error",
+          "value": "T09 load handler unavailable"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_TECHNICAL_ABNORMAL",
+        "known_problem": true,
+        "acceptable_alternatives": []
+      }
+    },
+    {
+      "id": "technical-exception",
+      "version": "1",
+      "family": "technical",
+      "variant_kind": "reasonable_exception",
+      "entry": "index.html?case=technical&variant=3",
+      "max_actions": 1,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#load"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#status",
+          "value": "Please sign in"
+        },
+        {
+          "kind": "http_status",
+          "value": 401
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_TECHNICAL_EXCEPTION",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    },
+    {
+      "id": "history-normal",
+      "version": "1",
+      "family": "history",
+      "variant_kind": "normal",
+      "entry": "index.html?case=history&variant=1",
+      "max_actions": 2,
+      "unit": "",
+      "reset": "New browser context, reload original entry; no external DB/account",
+      "initial_state": "Original entry before any actions; browser-local controlled state",
+      "actions": [
+        {
+          "type": "click",
+          "target": {
+            "selector": "#save"
+          }
+        },
+        {
+          "type": "click",
+          "target": {
+            "selector": "#next"
+          }
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "text",
+          "selector": "#next",
+          "value": "Next item saved"
+        }
+      ],
+      "labels": {
+        "sentinel": "EVALUATOR_ONLY_HISTORY_NORMAL",
+        "known_problem": false,
+        "acceptable_alternatives": [
+          "visible state update",
+          "visible validation",
+          "cancelled action"
+        ]
+      }
+    }
+  ]
+}

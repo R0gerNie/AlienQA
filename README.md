@@ -17,7 +17,7 @@ python -m pip install -e '.[dev]' -c requirements-dev.lock
 python -m playwright install chromium
 ```
 
-`requirements-dev.lock` 固定当前本地验证的开发依赖版本。Linux CI 自动安装 Chromium 系统依赖，执行测试和覆盖率检查，并构建发行包。
+`requirements-dev.lock` 固定当前本地验证的开发依赖版本。Linux CI 配置了 Chromium 系统依赖、回归/覆盖率、构建和干净安装 job；本轮远程执行结果尚未取得，支持组合见 [兼容与发布状态](docs/engineering/compatibility-and-release.md)。
 
 在环境变量中设置模型密钥，如 `DEEPSEEK_API_KEY`、`DASHSCOPE_API_KEY`；也可在本机控制台设置页保存。六种模型角色、温度与回退配置见 [config/config.yaml](config/config.yaml)。
 
@@ -113,11 +113,17 @@ python -m pytest --run-baselines -m baseline
 
 真实模型控制样例可显式运行 `python -m alienqa.evaluation --config config/codex.yaml --output artifacts/evaluation/new-run --max-calls 40`；调用上限跨样例共享，失败/未决样本保留，默认测试不会执行真实调用。[N06 首轮结果](docs/engineering/n06-first-results.md)已暴露双采样同义措辞合并与旧 judge 输出形状问题；新 judgment-v2 仅完成工程修正，真实小应用与独立人审仍待验收。
 
+T09 新增 19 个正常/异常/合理例外与历史场景，实际浏览器回归、生产管线替身、独立审核模板和保留分母的统计；框架资产直接复用 T01/T02。使用 `--manifest tests/fixtures/cases/manifest.json --cases ...` 选择有界评估，真实小应用需明确版本和重置配方；协议替身运行须声明 `--inference-kind substitute`。这组资产和 TodoMVC 浏览器基线不代替真实模型与人审，详见 [样例说明](tests/fixtures/cases/README.md)。
+
+发行安装验收使用 `scripts/verify_t09_distribution.py --wheel PATH --sdist PATH`：两套禁用系统依赖的独立 venv、重新安装依赖、项目内独立浏览器缓存及完整 CLI/UI/回放/审核/离线 HTML 路径。外部源码与安装产物留在项目内忽略目录，失败日志保留；复跑命令见 [T09 记录](docs/engineering/t09-implementation.md)。当前版本为实验性工具，模型效果、人审与用户试用 gate 仍开放。
+
 ## 规划与工程文档
 
 - [下一阶段主要工程计划](docs/engineering/next-stage-plan.md)
 - [功能 MVP 工程 Planbook 组](docs/engineering/mvp-planbooks/README.md)
 - [模块级技术实施与框架兼容计划](docs/engineering/mvp-planbooks/technical/README.md)
+- [T09 分层验收与新环境安装记录](docs/engineering/t09-implementation.md)
+- [兼容证据与实验性发布状态](docs/engineering/compatibility-and-release.md)
 - [T01 实施与框架/部署兼容矩阵](docs/engineering/t01-implementation.md)
 - [T07 实施与本机安装包验收记录](docs/engineering/t07-implementation.md)
 - [T05 实施与验证记录](docs/engineering/t05-implementation.md)

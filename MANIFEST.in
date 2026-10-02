@@ -5,3 +5,7 @@ recursive-include tests *.py *.html *.json *.js *.jsx *.ts *.tsx *.vue *.yaml *.
 include scripts/prepare_t02_frameworks.py
 recursive-include alienqa *.html
 include scripts/prepare_t01_frameworks.py
+include scripts/verify_t07_installation.py
+include scripts/verify_t09_distribution.py
+include scripts/summarize_t09_validation.py
+include scripts/prepare_t09_todomvc.py

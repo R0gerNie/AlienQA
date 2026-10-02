@@ -52,24 +52,31 @@ def wait(check, timeout=30):
     raise TimeoutError('installed local run did not complete')
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--wheel', required=True)
-    args = parser.parse_args()
+    parser.add_argument('--fixtures', default=str(REPO / 'tests/fixtures'))
+    parser.add_argument('--browser-path', default=os.environ.get('PLAYWRIGHT_BROWSERS_PATH') or str(REPO / '.venv/browsers'))
+    parser.add_argument('--output-root', default=str(REPO / 'artifacts/evaluation/t07-installation'))
+    args = parser.parse_args(argv)
+    fixtures = Path(args.fixtures).resolve()
+    output_root = Path(args.output_root).resolve()
+    if not output_root.is_relative_to(REPO / 'artifacts'):
+        parser.error('Installation outputs must stay inside project artifacts')
     wheel = Path(args.wheel).resolve()
-    root = REPO / 'artifacts/evaluation/t07-installation' / uuid.uuid4().hex
+    root = output_root / uuid.uuid4().hex
     work, site = root / 'work', root / 'site'
     work.mkdir(parents=True)
     temp = work / 'tmp'
     temp.mkdir()
     env = {**os.environ, 'PYTHONPATH': str(site), 'TMPDIR': str(temp),
-           'PLAYWRIGHT_BROWSERS_PATH': str(REPO / '.venv/browsers')}
+           'PLAYWRIGHT_BROWSERS_PATH': str(Path(args.browser_path).resolve())}
     processes = []
     logs = []
     class Quiet(SimpleHTTPRequestHandler):
         def log_message(self, *args):
             pass
-    website = ThreadingHTTPServer(('127.0.0.1', 0), partial(Quiet, directory=str(REPO / 'tests/fixtures/runtime-app')))
+    website = ThreadingHTTPServer(('127.0.0.1', 0), partial(Quiet, directory=str(fixtures / 'runtime-app')))
     thread = threading.Thread(target=website.serve_forever, daemon=True)
     thread.start()
     target = f'http://127.0.0.1:{website.server_port}/'
@@ -81,7 +88,7 @@ def main():
         package_path = subprocess.check_output([sys.executable, '-c', 'import alienqa; print(alienqa.__file__)'], cwd=work, env=env, text=True).strip()
         assert Path(package_path).is_relative_to(site)
         executable = work / 'offline-model'
-        executable.write_text(f'#!{sys.executable}\n' + (REPO / 'tests/fixtures/t07-model-provider.py').read_text())
+        executable.write_text(f'#!{sys.executable}\n' + (fixtures / 't07-model-provider.py').read_text())
         executable.chmod(0o700)
         config = work / 'config.json'
         config.write_text(json.dumps({'llm': {'codex': {'executable': str(executable)}, 'roles': {

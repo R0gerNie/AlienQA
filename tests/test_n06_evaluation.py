@@ -126,3 +126,54 @@ def test_cancelled_evaluation_keeps_prefix_and_unknown_request(tmp_path, monkeyp
     snapshot = load_snapshot(run_dir)
     assert snapshot["stop_reason"] == "cancelled" and snapshot["steps"]
     assert load_summary(run_dir, snapshot["run_id"])["counts"]["unknown"] == 1
+
+
+def test_t09_manifest_budget_and_labels_stay_evaluator_side(tmp_path, monkeypatch):
+    import alienqa.evaluation as evaluation
+    from alienqa.pipeline import PipelineResult
+    from pathlib import Path
+    captured=[]
+    class Pipeline:
+        def __init__(self,*args,**kwargs):
+            from types import SimpleNamespace
+            self.client=SimpleNamespace()
+            self.directory=kwargs['artifacts_dir']
+        def collect(self,project):
+            captured.append(project)
+            self.client.before_request('test/model')
+            result=PipelineResult()
+            result.save(self.directory)
+            return result
+    monkeypatch.setattr(evaluation,'AlienQAPipeline',Pipeline)
+    monkeypatch.setattr(evaluation,'serve_cases',lambda directory:(None,'http://localhost:1'))
+    manifest=Path(__file__).parent/'fixtures/cases/manifest.json'
+    code=evaluation.main(['--manifest',str(manifest),'--cases','save-normal','save-abnormal',
+                          '--max-calls','1','--inference-kind','substitute','--output',str(tmp_path)])
+    assert code==2 and len(captured)==1
+    assert captured[0].routes==['/'] and captured[0].visible_files==[]
+    assert 'abnormal' not in captured[0].base_url
+    saved=json.loads((tmp_path/'evaluation.json').read_text())
+    assert saved['inference_kind']=='substitute'
+    assert len(saved['runs'])==2 and saved['runs'][1]['status']=='not_started'
+    template=json.loads((tmp_path/'review-template.json').read_text())
+    assert len(template['runs'])==2 and all(r['review_status']=='pending' for r in template['runs'])
+
+
+def test_real_app_requires_version_and_reset_before_invocation(tmp_path):
+    import alienqa.evaluation as evaluation
+    with pytest.raises(SystemExit):
+        evaluation.main(['--real-app','http://localhost:1','--max-calls','1','--output',str(tmp_path)])
+    assert not (tmp_path/'manifest.json').exists()
+
+
+def test_real_application_attempts_do_not_claim_effect_acceptance():
+    from alienqa.evaluation import summarize_records
+    result=summarize_records([
+        {'status':'completed','case_type':'real_application','steps':[{'execution_status':'completed'}]},
+        {'status':'not_started','case_type':'real_application','steps':[]},
+        {'status':'completed','case_type':'paired_control','steps':[]},
+    ])
+    assert result['real_application_attempted_runs']==1
+    assert result['real_application_completed_runs']==1
+    assert result['real_application_evaluated'] is True
+    assert result['n06_closed'] is False
