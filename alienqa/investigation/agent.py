@@ -14,15 +14,29 @@ class InvestigationAgent:
         """契约入口：issue + 专家上下文 → Investigation。"""
         text = expert_ctx.to_text() if isinstance(expert_ctx, InvestigatorContext) else str(expert_ctx)
         issue_id = getattr(issue, "id", "") or ""
+        text = f"问题 {issue_id}：{getattr(issue, 'title', '')}\n\n{text}"
+        error = ""
         for repair in (False, True):
-            raw = self.roles.investigate(text, repair=repair)
             try:
-                return parse_investigation(raw, issue_id)
-            except (ValueError, TypeError):
+                raw = self.roles.investigate(text, repair=repair)
+                result = parse_investigation(raw, issue_id)
+                result.status, result.error = "completed", ""
+                self.roles.mark_parse("succeeded")
+                return result
+            except Exception as exc:  # noqa: BLE001 调查失败也要显式记录，不能伪装为空结论。
+                self.roles.mark_parse("failed", exc)
+                error = str(exc)
                 continue
-        return Investigation(issue_id=issue_id)
+        return Investigation(issue_id=issue_id, status="failed", error=error)
 
     def investigate_issue(self, project, issue, evidences, driver=None) -> Investigation:
         """便捷入口：先组装专家上下文再调查。"""
-        ctx = build_investigator_context(project, issue, evidences, driver)
-        return self.investigate(issue, ctx)
+        try:
+            ctx = build_investigator_context(project, issue, evidences, driver)
+            result = self.investigate(issue, ctx)
+            result.evidence_ids = list(issue.evidence_ids)
+            result.input_status = ctx.input_status
+            return result
+        except Exception as exc:
+            return Investigation(issue_id=issue.id, evidence_ids=list(issue.evidence_ids),
+                                 status="failed", error=str(exc), input_status={"context": "failed"})

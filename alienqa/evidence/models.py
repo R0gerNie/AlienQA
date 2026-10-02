@@ -28,10 +28,20 @@ class Evidence:
     reasoning: str = ""                                # 为什么预期合理（why reasonable）
     severity: Severity = Severity.MINOR
     classification: str = "other"
-    confidence: float = 0.5
+    confidence: float | None = 0.5
     timestamp: str = ""
     artifacts: dict = field(default_factory=dict)      # screenshots/dom/console/network 路径
     replay: dict = field(default_factory=dict)         # 13 用，非空才完整
+    before_state_id: str = ""
+    after_state_id: str = ""
+    schema_version: int | None = None
+    finding_kind: str | None = None
+    expectation_basis: dict | None = None
+    run_id: str = ""
+    step_id: str | None = None
+    action_id: str | None = None
+    source_record_ids: list[str] = field(default_factory=list)
+    expectation_id: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -47,8 +57,40 @@ class Evidence:
             "timestamp": self.timestamp,
             "artifacts": self.artifacts,
             "replay": self.replay,
+            "before_state_id": self.before_state_id,
+            "after_state_id": self.after_state_id,
+            "schema_version": self.schema_version,
+            "finding_kind": self.finding_kind,
+            "expectation_basis": self.expectation_basis,
+            "run_id": self.run_id,
+            "step_id": self.step_id,
+            "action_id": self.action_id,
+            "source_record_ids": list(self.source_record_ids),
+            "expectation_id": self.expectation_id,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Evidence":
+        """Load current and older evidence documents without requiring new fields."""
+        if data.get("schema_version") not in (None, 1, 2):
+            raise ValueError("不支持的 Evidence schema_version")
+        if data.get("finding_kind") not in (None, "technical_anomaly", "cognitive_mismatch"):
+            raise ValueError("无效 finding_kind")
+        if data.get("finding_kind") == "cognitive_mismatch" and not valid_basis(data.get("expectation_basis")):
+            raise ValueError("认知证据缺少有效的事前依据")
+        if data.get("finding_kind") == "technical_anomaly" and data.get("expectation_basis") is not None:
+            raise ValueError("技术证据不能虚构认知依据")
+        values = {name: data[name] for name in cls.__dataclass_fields__ if name in data}
+        values["severity"] = Severity(data.get("severity") or Severity.MINOR.value)
+        return cls(**values)
 
     def is_complete(self) -> bool:
         """证据完整 = 含 replay 且非空（planbook：否则视为不完整证据）。"""
-        return bool(self.replay)
+        return bool(self.replay.get("url") and self.artifacts.get("before") and self.artifacts.get("after")
+                    and self.artifacts.get("technical") and not self.artifacts.get("missing"))
+
+
+def valid_basis(basis) -> bool:
+    return (isinstance(basis, dict) and basis.get("type") in
+            {"visible_copy", "interaction_convention", "observed_behavior"}
+            and isinstance(basis.get("reference"), str) and bool(basis["reference"].strip()))

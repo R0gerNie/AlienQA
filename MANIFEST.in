@@ -1,0 +1,7 @@
+include requirements-dev.lock
+recursive-include config *.yaml
+recursive-include docs *.md
+recursive-include tests *.py *.html *.json *.js *.jsx *.ts *.tsx *.vue *.yaml *.md
+include scripts/prepare_t02_frameworks.py
+recursive-include alienqa *.html
+include scripts/prepare_t01_frameworks.py

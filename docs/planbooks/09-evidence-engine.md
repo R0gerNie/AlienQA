@@ -53,9 +53,11 @@
 
 ```python
 class EvidenceEngine:
-    def build(self, mismatch, observation, action, state) -> Evidence: ...
+    def build(self, mismatches, observation, action, state, driver=None, before_state=None) -> list[Evidence]: ...
     def persist(self, evidence: Evidence) -> None: ...
 ```
+
+2026-10-01 实现契约（C04/C05）：每条 mismatch 对应一条 Evidence，保留 `before_state_id / after_state_id`。`persist` 保存截图、DOM、动作窗口技术信号，并同步保存 `replay/<evidence_id>.json`；聚类后更新同一记录的 `issue_id`。回放起点是启动 URL，动作序列只包括成功执行的动作，会话包含 cookies 与 localStorage origins。存在完整回放包不等于缺陷语义已证实复现。回归见 `tests/test_evidence_engine.py`、`tests/test_pipeline_browser_flow.py`。
 
 ## 6. 关系
 

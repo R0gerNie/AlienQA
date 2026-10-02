@@ -9,6 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINES = ROOT / "baselines"
+pytestmark = pytest.mark.baseline
 
 
 def _load_json(path: Path) -> dict:

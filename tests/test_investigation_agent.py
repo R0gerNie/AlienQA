@@ -132,6 +132,14 @@ def test_investigate_retries_on_bad_json(agent):
     assert "不是合法 JSON" in fake.calls[1]["messages"][0]["content"]
 
 
+def test_investigation_failure_is_explicit(agent):
+    inv_agent, fake = agent
+    fake.texts.extend(["{}", "not json"])
+    result = inv_agent.investigate(_issue(), InvestigatorContext())
+    assert result.status == "failed"
+    assert result.error
+
+
 def test_investigator_isolated_from_explorer():
     inv = InvestigatorContext(source="RefundModal.tsx", dom="<div/>")
     assert inv.source == "RefundModal.tsx"
@@ -164,8 +172,26 @@ def test_build_context_blackbox_prefers_action_selector_dom():
     ev = Evidence(id="EV-001", action={"type": "click", "target": {"selector": "#app"}}, replay={})
     ctx = build_investigator_context(project, _issue(), [ev], driver=_Driver())
     assert ctx.source == ""
-    assert "提交按钮" in ctx.dom
+    assert ctx.dom == ""  # 无问题现场快照时，不能用扫描结束后的页面补造现场。
     assert "huge full page" not in ctx.dom
+
+
+def test_investigation_filters_issue_evidence_and_uses_saved_dom(agent, tmp_path):
+    inv_agent, fake = agent
+    snapshot = tmp_path / "dom.html"
+    snapshot.write_text("<div>refund incident snapshot</div>")
+    member = _evidence()
+    member.observation_summary = "refund modal empty"
+    member.artifacts["dom_after"] = str(snapshot)
+    unrelated = Evidence(id="EV-other", expectation="unrelated delete expectation",
+                         replay={"console": ["unrelated delete error"]})
+    fake.texts.append('{"root_cause_hypothesis":"unknown"}')
+    inv_agent.investigate_issue(None, _issue(), [member, unrelated])
+    prompt = fake.calls[0]["messages"][0]["content"]
+    assert "退款 Modal 内容为空" in prompt
+    assert "refund modal empty" in prompt
+    assert "refund incident snapshot" in prompt
+    assert "unrelated delete" not in prompt
 
 
 def test_investigate_issue_blackbox_console_error(agent):

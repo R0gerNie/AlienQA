@@ -1,0 +1,22 @@
+# Official Codex CLI transport: uses the existing ChatGPT login (codex login).
+# Six independent role prompts; choose only models available to your account.
+# CLI does not apply temperature/max_tokens; reasoning effort is recorded.
+llm:
+  default_provider: codex
+  request_timeout: 120
+  codex:
+    executable: codex
+    reasoning_effort: low
+  roles:
+    gist:
+      model: codex/gpt-6.1-sol
+    expectation:
+      model: codex/gpt-6.1-sol
+    visual:
+      model: codex/gpt-6.1-sol
+    judge:
+      model: codex/gpt-6.1-sol
+    investigator:
+      model: codex/gpt-6.1-sol
+    reporter:
+      model: codex/gpt-6.1-sol

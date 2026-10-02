@@ -103,7 +103,7 @@ def test_replay_not_reproduced_when_diff_image(tmp_path):
     assert result.note  # 降权提示
 
 
-def test_replay_signal_overlap_reproduces(tmp_path):
+def test_replay_generic_console_error_does_not_prove_reproduction(tmp_path):
     fake = _FakeDriver(after_image=_png(white=True), signals=RuntimeSignals(console_errors=["TypeError"]))
     engine = ReplayEngine(replay_dir=str(tmp_path / "replay"), driver_factory=lambda: fake)
     evidence = Evidence(
@@ -113,13 +113,86 @@ def test_replay_signal_overlap_reproduces(tmp_path):
     )
     engine.save(evidence)
     result = engine.replay("EV-00001")
-    assert result.reproduced is True  # 信号复现，即使截图不可比
+    assert result.reproduced is False
+    assert result.status == "inconclusive"
 
 
-def test_replay_missing_package_raises(tmp_path):
+def test_replay_restores_initial_url_and_full_storage_state(tmp_path):
+    fake = _FakeDriver(after_image=_png())
+    engine = ReplayEngine(tmp_path / "replay", driver_factory=lambda: fake)
+    storage = {"cookies": [{"name": "session"}], "origins": [
+        {"origin": "http://x", "localStorage": [{"name": "token", "value": "initial"}]},
+    ]}
+    engine.save(Evidence(id="EV-1", replay={
+        "url": "http://x/list", "final_url": "http://x/detail",
+        "storage_state": storage, "cookies": [{"name": "wrong-final"}],
+        "action_sequence": [{"type": "type", "target": {"selector": "#search"}, "text": "order"}],
+    }))
+    result = engine.replay("EV-1")
+    assert fake.launched == {"url": "http://x/list", "storage_state": storage}
+    assert fake.actions[0].text == "order"
+    assert "storage_state" not in str(result.to_dict())
+
+
+def test_replay_action_failure_is_explicit_and_closes_driver(tmp_path):
+    class Failing(_FakeDriver):
+        closed = False
+
+        def execute(self, action, timeout=3000):
+            raise RuntimeError("missing #save")
+
+        def close(self):
+            self.closed = True
+
+    fake = Failing(_png())
+    engine = ReplayEngine(tmp_path / "replay", driver_factory=lambda: fake)
+    engine.save(Evidence(id="EV-1", replay={"url": "http://x", "action_sequence": [
+        {"type": "click", "target": {"selector": "#save"}},
+    ]}))
+    result = engine.replay("EV-1")
+    assert result.status == "failed"
+    assert "missing #save" in result.note
+    assert fake.closed
+
+
+def test_replay_matching_signal_from_initial_page_is_not_target_recurrence(tmp_path):
+    signal = "TypeError: unrelated startup widget unavailable"
+    fake = _FakeDriver(_png(), RuntimeSignals(console_errors=[signal]))
+    engine = ReplayEngine(tmp_path / "replay", driver_factory=lambda: fake)
+    engine.save(Evidence(id="EV-1", replay={"url": "http://x", "console": [signal],
+        "action_sequence": [{"type": "click", "target": {"selector": "#save"}}]}))
+    result = engine.replay("EV-1")
+    assert not result.reproduced
+    assert not result.matched_signals
+
+
+def test_replay_missing_package_is_explicit_failure(tmp_path):
     engine = ReplayEngine(replay_dir=str(tmp_path / "replay"))
-    with pytest.raises(FileNotFoundError):
-        engine.replay("EV-99999")
+    assert engine.replay("EV-99999").status == "failed"
+
+
+def test_replay_invalid_static_directory_is_explicit_failure(tmp_path):
+    fake = _FakeDriver(_png())
+    engine = ReplayEngine(tmp_path / "replay", driver_factory=lambda: fake)
+    engine.save(Evidence(id="EV-static", replay={"url": "http://127.0.0.1:9876/index.html",
+        "static_server": {"directory": str(tmp_path / "missing"), "port": 9876}}))
+    result = engine.replay("EV-static")
+    assert result.status == "failed"
+    assert "静态" in result.note
+    assert not fake.launched
+
+
+def test_replay_static_port_conflict_is_explicit_failure(tmp_path, monkeypatch):
+    def occupied(*args, **kwargs):
+        raise OSError("Address already in use")
+
+    monkeypatch.setattr("alienqa.replay.engine.ThreadingHTTPServer", occupied)
+    engine = ReplayEngine(tmp_path / "replay", driver_factory=lambda: _FakeDriver(_png()))
+    engine.save(Evidence(id="EV-static", replay={"url": "http://127.0.0.1:9876/index.html",
+        "static_server": {"directory": str(tmp_path), "port": 9876}}))
+    result = engine.replay("EV-static")
+    assert result.status == "failed"
+    assert "Address already in use" in result.note
 
 
 # ---- 端到端（真实 Playwright） ----
@@ -148,3 +221,72 @@ def test_replay_end_to_end_real(http_base_url, tmp_path):
     result = engine.replay("EV-00042")
     assert result.reproduced is True
     assert result.match_score > 0.9
+
+
+def test_replay_cross_route_and_local_storage_real(http_base_url, tmp_path):
+    pytest.importorskip("playwright")
+    from alienqa.driver import PlaywrightDriver
+
+    entry = f"{http_base_url}/replay-app/index.html"
+    initial_storage = {"cookies": [], "origins": [{
+        "origin": http_base_url,
+        "localStorage": [{"name": "sessionLabel", "value": "Alice"}],
+    }]}
+    driver = PlaywrightDriver(browser="chromium")
+    try:
+        driver.launch(entry, storage_state=initial_storage)
+        driver.execute(Action("click", Target(selector="#open")))
+        driver.execute(Action("type", Target(selector="#message"), text="saved message"))
+        driver.execute(Action("click", Target(selector="#save")))
+        replay_data = driver.replay_data()
+        after = driver.screenshot()
+    finally:
+        driver.close()
+    assert replay_data["url"] == entry
+    assert replay_data["final_url"].endswith("/replay-app/detail.html")
+    assert replay_data["storage_state"]["origins"] == initial_storage["origins"]
+    screenshot = tmp_path / "after.png"
+    screenshot.write_bytes(after)
+    engine = ReplayEngine(tmp_path / "replay", driver_factory=lambda: PlaywrightDriver(browser="chromium"))
+    engine.save(Evidence(id="EV-route", replay=replay_data, artifacts={"after": str(screenshot)}))
+    result = engine.replay("EV-route")
+    assert result.status == "reproduced"
+    assert result.match_score > 0.98
+
+
+def test_replay_restarts_closed_static_server_real(tmp_path):
+    from functools import partial
+    from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+
+    from alienqa.driver import PlaywrightDriver
+
+    app = tmp_path / "app"
+    app.mkdir()
+    (app / "index.html").write_text('<button id="save" onclick="this.textContent=\'Saved\'">Save</button>')
+    server = ThreadingHTTPServer(("127.0.0.1", 0), partial(SimpleHTTPRequestHandler, directory=str(app)))
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    port = server.server_port
+    entry = f"http://127.0.0.1:{port}/index.html"
+    driver = PlaywrightDriver(browser="chromium")
+    try:
+        driver.launch(entry)
+        driver.execute(Action("click", Target(selector="#save")))
+        replay_data = driver.replay_data()
+        after = driver.screenshot()
+    finally:
+        driver.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+    replay_data["static_server"] = {"directory": str(app), "port": port}
+    screenshot = tmp_path / "after.png"
+    screenshot.write_bytes(after)
+    engine = ReplayEngine(tmp_path / "replay", driver_factory=lambda: PlaywrightDriver(browser="chromium"))
+    engine.save(Evidence(id="EV-static", replay=replay_data, artifacts={"after": str(screenshot)}))
+    result = engine.replay("EV-static")
+    assert result.status == "reproduced"
+    # Replay also releases its restored port once the browser has closed.
+    probe = ThreadingHTTPServer(("127.0.0.1", port), SimpleHTTPRequestHandler)
+    probe.server_close()

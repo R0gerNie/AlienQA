@@ -95,7 +95,10 @@ def surface_dirs(root: Path, framework: str, manifest_dir: Path | None) -> list:
             base = Path(".")
 
     if framework == "Next.js":
-        subs = ("app", "pages", "src", "components")
+        from .routes import next_directories
+        app_base = root / base
+        return [p.relative_to(root) for _, p in next_directories(app_base)] + [
+            base / p for p in ('components', 'src/components', 'src/styles', 'src/hooks', 'src/lib') if (app_base / p).is_dir()]
     elif framework in ("Vue", "Nuxt"):
         # app/javascript 为 Rails+Vue 约定；其余为通用前端目录约定
         subs = ("app/javascript", "src", "frontend", "components", "pages")
@@ -109,3 +112,68 @@ def surface_dirs(root: Path, framework: str, manifest_dir: Path | None) -> list:
     # 统一以 manifest 所在应用目录为基准，适配 monorepo 嵌套（非根级）前端
     candidates = [(base / s) if base != Path(".") else Path(s) for s in subs]
     return [c for c in candidates if (root / c).is_dir()]
+
+
+def discover_manifests(root: Path):
+    """Bounded default scan plus explicit npm/pnpm workspace patterns."""
+    root = root.resolve()
+    patterns, diagnostics = [], []
+    data = load_json(root / 'package.json')
+    if isinstance(data, dict):
+        workspace = data.get('workspaces', [])
+        if isinstance(workspace, dict):
+            workspace = workspace.get('packages', [])
+        if isinstance(workspace, list):
+            patterns.extend(p for p in workspace if isinstance(p, str))
+    if (root / 'pnpm-workspace.yaml').is_file():
+        import yaml
+        try:
+            value = yaml.safe_load((root / 'pnpm-workspace.yaml').read_text())
+            if isinstance(value, dict) and isinstance(value.get('packages'), list):
+                patterns.extend(p for p in value['packages'] if isinstance(p, str))
+        except (OSError, ValueError, yaml.YAMLError):
+            diagnostics.append('pnpm-workspace.yaml unreadable')
+    found, visited, truncated = set(), 0, False
+    def walk(directory, depth):
+        nonlocal visited, truncated
+        if visited >= 4000 or len(found) >= 512:
+            truncated = True
+            return
+        visited += 1
+        try:
+            entries = sorted(directory.iterdir())
+        except OSError:
+            return
+        for entry in entries:
+            if entry.is_symlink() or entry.name.startswith('.') or entry.name in HARD_EXCLUDED_DIRS:
+                continue
+            if entry.is_dir():
+                if depth < 3:
+                    walk(entry, depth + 1)
+            elif entry.name == 'package.json':
+                found.add(entry)
+    walk(root, 0)
+    exclusions = [p[1:] for p in patterns if p.startswith('!')]
+    import fnmatch
+    for pattern in patterns[:64]:
+        if pattern.startswith('!'):
+            continue
+        if '**' in pattern or Path(pattern).is_absolute() or '..' in Path(pattern).parts or len(Path(pattern).parts) > 8:
+            diagnostics.append('unsupported workspace pattern: ' + pattern)
+            continue
+        for index, candidate in enumerate(root.glob(pattern)):
+            if index >= 256:
+                truncated = True
+                break
+            relative = candidate.relative_to(root).as_posix()
+            if any(fnmatch.fnmatchcase(relative, p) for p in exclusions):
+                continue
+            if any(part in HARD_EXCLUDED_DIRS or part.startswith('.') for part in candidate.relative_to(root).parts):
+                continue
+            if candidate.is_dir() and candidate.resolve().is_relative_to(root) and not candidate.is_symlink():
+                manifest = candidate / 'package.json'
+                if manifest.is_file() and not manifest.is_symlink():
+                    found.add(manifest)
+    return sorted(found)[:512], {'bounded': True, 'max_depth': 3, 'max_manifests': 512,
+        'max_directories': 4000, 'workspace_patterns': patterns, 'truncated': truncated or len(found) > 512,
+        'diagnostics': diagnostics, 'limitations': ['default scan depth 3; workspace patterns at most 8 segments; recursive ** unsupported']}

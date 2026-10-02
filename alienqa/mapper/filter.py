@@ -62,6 +62,9 @@ def build_surface_text(project: Project, root) -> str:
     total = sum(len(s) for s in sections)
     file_blocks = []
     for f in filter_visible_files(project):
+        app = Path(project.app_dir or root) if root else None
+        if root and not (Path(root) / f.path).resolve().is_relative_to(app.resolve()):
+            continue
         content = _read_file(root, f)
         if content is None:
             continue

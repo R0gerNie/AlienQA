@@ -2,29 +2,58 @@
 import re
 from pathlib import Path
 
-from .scan import FRONTEND_EXTENSIONS, find_package_jsons, load_json, surface_dirs
+from .scan import FRONTEND_EXTENSIONS, discover_manifests, iter_repo_files, load_json, surface_dirs
+from .routes import next_pages, route_metadata
 
 DEV_SCRIPT_PRIORITY = ("dev", "start:dev", "start", "dx", "serve")
 
 
-def detect_frontend_apps(root: Path):
-    """枚举仓库中所有前端应用（跨框架），返回 [(framework, manifest_path, name), ...]。
+def manifest_facts(path):
+    data = load_json(path)
+    problems = []
+    if not isinstance(data, dict):
+        return {}, ["invalid package.json object"]
+    data = dict(data)
+    for key in ('dependencies', 'devDependencies', 'peerDependencies', 'scripts', 'engines'):
+        value = data.get(key, {})
+        if not isinstance(value, dict):
+            problems.append(f"{key} must be an object")
+            value = {}
+        invalid = any(not isinstance(v, str) for v in value.values())
+        if invalid:
+            problems.append(f"{key} has non-string values")
+        data[key] = {k: v for k, v in value.items() if isinstance(v, str)}
+    return data, problems
 
-    逐个 package.json 独立分类，且只看 dependencies（排除 dev/peer 依赖），
-    以便把"应用"与"组件库/工具包"区分开，兼容同一仓库混合多个框架的场景。
-    """
+
+def recognition(manifest, framework):
+    data, _ = manifest_facts(manifest)
+    signals = [f"{kind}: {name}" for kind in ('dependencies', 'devDependencies')
+               for name in data.get(kind, {}) if name in ('react', 'react-dom', 'vue', 'next', 'nuxt', 'svelte', '@angular/core')]
+    signals.extend(f"script {key}: {value}" for key, value in data.get('scripts', {}).items()
+                   if any(word in value for word in ('vite', 'next', 'nuxt', 'react-scripts', 'vue-cli', 'ng serve')))
+    for path in sorted(manifest.parent.iterdir()):
+        if path.name in ('index.html', 'angular.json', 'src', 'app', 'pages', 'public') or path.name.startswith(('vite.config.', 'next.config.', 'vue.config.')):
+            signals.append(f"entry/config: {path.name}")
+    return signals
+
+
+def detect_frontend_apps(root: Path, manifests=None, diagnostics=None):
+    """Package-local dependencies AND runnable entry signals; peer libraries excluded."""
     apps = []
-    for p in find_package_jsons(root):
-        data = load_json(p)
-        if not data:
-            continue
-        name = data.get("name") or ""
-        deps = set(data.get("dependencies") or {})
-        scripts = data.get("scripts") or {}
-        script_text = " ".join(scripts.values())
-        fw = _classify_package(deps, script_text)
-        if fw and _is_frontend_app(p.parent, fw):
-            apps.append((fw, p, name))
+    for path in manifests if manifests is not None else discover_manifests(root)[0]:
+        data, problems = manifest_facts(path)
+        if diagnostics is not None:
+            diagnostics.extend({'source': path.relative_to(root).as_posix(), 'reason': reason} for reason in problems)
+        deps = set(data.get('dependencies', {})) | set(data.get('devDependencies', {}))
+        scripts = ' '.join(data.get('scripts', {}).values())
+        framework = _classify_package(deps, scripts)
+        if framework and _is_frontend_app(path.parent, framework):
+            configs = list(path.parent.glob('vite.config.*'))
+            library = any(re.search(r'\blib\s*:', p.read_text(encoding='utf-8', errors='replace')[:8000]) for p in configs if p.is_file())
+            if library and not (path.parent / 'index.html').is_file():
+                continue
+            apps.append((framework, path, data.get('name') if isinstance(data.get('name'), str) else ''))
     return apps
 
 
@@ -53,25 +82,7 @@ _SATELLITE_HINTS = (
 
 def _count_next_routes(base: Path) -> int:
     """统计某 Next.js 应用目录下用户可见路由文件数（app 的 page.* 与 pages 的页面文件）。"""
-    count = 0
-    for dname in ("app", "pages"):
-        dd = base / dname
-        if not dd.is_dir():
-            continue
-        for f in dd.rglob("*"):
-            if f.suffix not in (".tsx", ".jsx", ".ts", ".js"):
-                continue
-            if dname == "app":
-                if f.name.startswith("page."):
-                    count += 1
-            else:
-                parts = f.relative_to(dd).parts
-                if parts and parts[0] == "api":
-                    continue
-                if any(p.startswith("_") for p in parts):
-                    continue
-                count += 1
-    return count
+    return len(next_pages(base)[0])
 
 
 def _surface_file_count(root: Path, framework: str, manifest: Path) -> int:
@@ -81,7 +92,7 @@ def _surface_file_count(root: Path, framework: str, manifest: Path) -> int:
         dd = root / d
         if not dd.is_dir():
             continue
-        for f in dd.rglob("*"):
+        for f in iter_repo_files(dd):
             if f.is_file() and f.suffix.lower() in FRONTEND_EXTENSIONS:
                 total += 1
                 if total >= 200:
@@ -141,7 +152,7 @@ def extract_commands(manifest_path: Path | None):
     """从 manifest 提取 dev/start 与 build 命令。"""
     if not manifest_path:
         return "", ""
-    data = load_json(manifest_path)
+    data, _ = manifest_facts(manifest_path)
     if not data:
         return "", ""
     scripts = data.get("scripts") or {}
@@ -150,121 +161,47 @@ def extract_commands(manifest_path: Path | None):
     return start, build
 
 
-def extract_env(manifest_path: Path | None):
+def extract_env(manifest_path: Path | None, root=None):
     if not manifest_path:
         return {}
-    data = load_json(manifest_path) or {}
-    env = {}
-    engines = data.get("engines") or {}
-    if engines.get("node"):
-        env["node"] = engines["node"]
-    if data.get("packageManager"):
-        env["package_manager"] = data["packageManager"]
+    root = Path(root or manifest_path.parent).resolve()
+    data, _ = manifest_facts(manifest_path)
+    parents = [manifest_path.parent]
+    while parents[-1] != root and parents[-1].is_relative_to(root):
+        parents.append(parents[-1].parent)
+    declarations = [manifest_facts(p / 'package.json')[0].get('packageManager') for p in parents]
+    declared = next((value for value in declarations if isinstance(value, str) and value), '')
+    locks = []
+    for parent in parents:
+        local = [(manager, parent / name) for manager, name in [('npm', 'package-lock.json'), ('npm', 'npm-shrinkwrap.json'),
+            ('pnpm', 'pnpm-lock.yaml'), ('yarn', 'yarn.lock'), ('bun', 'bun.lock'), ('bun', 'bun.lockb')] if (parent / name).is_file()]
+        if local:
+            locks = local
+            break
+    managers = {manager for manager, _ in locks}
+    explicit = declared.split('@')[0] if declared else ''
+    conflict = len(managers) > 1 or bool(explicit and managers and explicit not in managers)
+    scripts = data.get('scripts', {})
+    start_name = next((name for name in DEV_SCRIPT_PRIORITY if scripts.get(name)), '')
+    env = {'cwd': str(manifest_path.parent), 'start_script': start_name, 'build_script': 'build' if scripts.get('build') else '',
+           'package_manager': 'unknown' if conflict else declared or (next(iter(managers)) if len(managers) == 1 else 'unknown'),
+           'package_manager_declared': declared,
+           'package_manager_status': 'conflict' if conflict else 'declared' if declared else 'lockfile' if locks else 'unknown',
+           'lockfile': locks[0][1].relative_to(root).as_posix() if len(locks) == 1 else '',
+           'lockfiles': [path.relative_to(root).as_posix() for _, path in locks],
+           'diagnostics': ['packageManager/lockfiles conflict; no executable suggestion selected'] if conflict else []}
+    if data.get('engines', {}).get('node'):
+        env['node'] = data['engines']['node']
     return env
 
 
 def extract_routes(root: Path, framework: str, manifest_path: Path | None):
-    if framework == "Next.js":
-        base = manifest_path.parent if manifest_path else root
-        routes = _next_routes(base)
-        if base != root:
-            routes |= _next_routes(root)
-        return sorted(routes)
-    if framework in ("Vue", "Nuxt"):
-        return _vue_routes(root, framework, manifest_path)
-    if framework == "React":
-        return _react_routes(root, framework, manifest_path)
-    return []
-
-
-def _iter_surface_files(root: Path, framework: str, manifest_path: Path | None):
-    """只遍历该应用前端表面目录下的文件，避免全仓库扫描。"""
-    for d in surface_dirs(root, framework, manifest_path):
-        dd = root / d
-        if not dd.is_dir():
-            continue
-        for f in dd.rglob("*"):
-            if f.is_file():
-                yield f
+    return sorted({row['path'] for row in route_metadata(root, framework, manifest_path)[0]})
 
 
 def _next_routes(base: Path):
-    """App Router（app/）与 Pages Router（pages/）合并提取。"""
-    routes = set()
-    for dname in ("app", "pages"):
-        dd = base / dname
-        if not dd.is_dir():
-            continue
-        if dname == "app":
-            for f in dd.rglob("page.*"):
-                if f.suffix not in (".tsx", ".jsx", ".ts", ".js"):
-                    continue
-                route = _parts_to_route(f.relative_to(dd).parts[:-1])
-                if route:
-                    routes.add(route)
-        else:
-            for f in dd.rglob("*"):
-                if f.suffix not in (".tsx", ".jsx", ".ts", ".js"):
-                    continue
-                parts = f.relative_to(dd).parts
-                if parts and parts[0] == "api":
-                    continue
-                if any(p.startswith("_") for p in parts):
-                    continue
-                if f.stem == "index":
-                    route_parts = parts[:-1]
-                else:
-                    route_parts = list(parts[:-1]) + [f.stem]
-                route = _parts_to_route(route_parts)
-                if route:
-                    routes.add(route)
-    return routes
+    return {route for route, path in next_pages(base)[0]}
 
 
 def _parts_to_route(parts):
-    segs = []
-    for seg in parts:
-        if not seg:
-            continue
-        if seg.startswith("(") and seg.endswith(")"):  # Next.js route group
-            continue
-        segs.append(seg)
-    return "/" + "/".join(segs)
-
-
-def _vue_routes(root: Path, framework: str, manifest_path: Path | None):
-    """从 vue-router 配置中尽力提取路由（best-effort）。"""
-    routes = set()
-    for f in _iter_surface_files(root, framework, manifest_path):
-        if f.suffix not in (".js", ".ts"):
-            continue
-        rel = f.relative_to(root).as_posix().lower()
-        if not ("route" in f.name.lower() or "/routes/" in rel or "/router/" in rel):
-            continue
-        try:
-            text = f.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        if "createRouter" in text or "routes" in text:
-            for m in re.finditer(r"path\s*:\s*['\"]([^'\"]+)['\"]", text):
-                r = m.group(1)
-                if r:
-                    routes.add(r if r.startswith("/") else "/" + r)
-    return sorted(routes)
-
-
-def _react_routes(root: Path, framework: str, manifest_path: Path | None):
-    """从 React Router 配置中尽力提取路由（best-effort，按文件名过滤避免全量读文件）。"""
-    routes = set()
-    for f in _iter_surface_files(root, framework, manifest_path):
-        if f.suffix not in (".tsx", ".jsx", ".ts", ".js"):
-            continue
-        if "route" not in f.name.lower() and "router" not in f.name.lower():
-            continue
-        try:
-            text = f.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        for m in re.finditer(r"path\s*=\s*['\"]([^'\"]+)['\"]", text):
-            routes.add(m.group(1))
-    return sorted(routes)
+    return '/' + '/'.join(p for p in parts if p and not (p.startswith('(') and p.endswith(')')))

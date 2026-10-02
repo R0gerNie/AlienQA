@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Runtime evidence fixture</title>
+<button id="save">Save</button>
+<p>Choose Save to submit.</p>
+<script>
+document.querySelector('#save').onclick = () => {
+  fetch('/failure?case=1', {method: 'POST'});
+  fetch('/failure?case=2', {method: 'POST'});
+  throw new Error('action fixture exception');
+};
+if (new URLSearchParams(location.search).has('entry')) {
+  throw new Error('entry fixture exception');
+}
+</script>

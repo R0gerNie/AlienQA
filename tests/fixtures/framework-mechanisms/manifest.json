@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "purpose": "T02 browser mechanics and T05 independent fault replay; model accuracy is evaluated separately",
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "vue": "3.5.43",
+    "vite": "8.3.2",
+    "next": "16.3.8"
+  },
+  "workspace": "examples/open-source/t02-frameworks",
+  "cases": [
+    {
+      "entry": "vite/react.html",
+      "mechanisms": [
+        "controlled input",
+        "blur",
+        "rerender",
+        "portal modal",
+        "delayed feedback",
+        "history/hash"
+      ],
+      "counterexamples": [
+        "mode=reset",
+        "mode=missing"
+      ]
+    },
+    {
+      "entry": "vite/vue.html",
+      "mechanisms": [
+        "v-model",
+        "blur",
+        "custom combobox/option",
+        "conditional DOM",
+        "delayed feedback",
+        "history/hash"
+      ],
+      "counterexamples": [
+        "mode=option-fails",
+        "mode=missing"
+      ]
+    },
+    {
+      "entry": "next/",
+      "mechanisms": [
+        "App Router",
+        "SSR",
+        "visible client readiness",
+        "controlled input",
+        "delayed feedback",
+        "client navigation with query/hash"
+      ],
+      "counterexamples": [
+        "missing=1"
+      ]
+    },
+    {
+      "entry": "next/legacy",
+      "mechanisms": [
+        "Pages Router SSR",
+        "controlled input",
+        "delayed feedback",
+        "navigation to App Router"
+      ]
+    }
+  ],
+  "reset": "Create a new browser context and load the original entry; data is browser-local only",
+  "pipeline_budget": {
+    "max_actions": 3,
+    "path": [
+      "type",
+      "blur",
+      "click"
+    ]
+  },
+  "inference": "Deterministic model substitutes only; no real model or CLI calls",
+  "limits": [
+    "No framework store inspection",
+    "No claim of general component-library support",
+    "No arbitrary hydration detection",
+    "No iframe/shadow full-path support"
+  ],
+  "replay_fault_path": {
+    "tasks": [
+      "T05 E01",
+      "T05 E03",
+      "T05 E07"
+    ],
+    "actions": [
+      "type Email",
+      "click Save",
+      "navigate Details",
+      "click Trigger fault"
+    ],
+    "signal": "page_error: T05 framework detail handler unavailable",
+    "artifacts": "artifacts/evaluation/t05-frameworks"
+  }
+}

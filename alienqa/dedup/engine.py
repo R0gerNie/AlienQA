@@ -1,9 +1,11 @@
 """Deduplicator：两级聚类把 Evidence 归并为 Issue（并查集）。"""
 from pathlib import Path
+import json
 
 from ..evidence.models import Severity
 from .models import Issue, Vector
 from .similarity import ahash, cosine, hamming, text_jaccard
+from ..replay.signals import signal_key
 
 _SEVERITY_RANK = {
     Severity.CRITICAL: 4,
@@ -45,10 +47,12 @@ class Deduplicator:
             return []
         parent = list(range(n))
         vectors = [self.embed(e) for e in evidences]
-        # ① 硬聚类：同页面 + 同异常类型直接归并
+        # ① 硬聚类只归并同页、同类且完整技术信号相同的记录。
         groups = {}
         for i, e in enumerate(evidences):
             key = _hard_key(e)
+            if key is None:
+                continue
             if key in groups:
                 _union(parent, groups[key], i)
             else:
@@ -56,6 +60,12 @@ class Deduplicator:
         # ② 软聚类：跨硬组按相似度合并
         for i in range(n):
             for j in range(i + 1, n):
+                if evidences[i].finding_kind != evidences[j].finding_kind:
+                    continue
+                if evidences[i].finding_kind is not None:
+                    # Modern records never merge on prose/screenshot resemblance alone.
+                    if evidences[i].finding_kind != "cognitive_mismatch" or _cognitive_key(evidences[i]) != _cognitive_key(evidences[j]):
+                        continue
                 if _find(parent, i) == _find(parent, j):
                     continue
                 if self._similar(vectors[i], vectors[j]):
@@ -65,8 +75,20 @@ class Deduplicator:
         for i in range(n):
             comps.setdefault(_find(parent, i), []).append(i)
         issues = []
+        # Keep existing view IDs where possible; new groups use an unused number.
+        used = set(e.issue_id for e in evidences if e.issue_id)
+        assigned = set()
         for issue_no, members in enumerate(sorted(comps.values(), key=lambda m: min(m)), start=1):
             issue = self._make_issue(issue_no, members, evidences)
+            existing = sorted({evidences[i].issue_id for i in members if evidences[i].issue_id} - assigned)
+            if existing:
+                issue.id = existing[0]
+            else:
+                number = 1
+                while f"ISSUE-{number:03d}" in used | assigned:
+                    number += 1
+                issue.id = f"ISSUE-{number:03d}"
+            assigned.add(issue.id)
             for i in members:
                 evidences[i].issue_id = issue.id
             issues.append(issue)
@@ -113,6 +135,9 @@ class Deduplicator:
             evidence_ids=sorted(e.id for e in evs),
             root_cause_candidate="",
             severity=top.severity,
+            grouping_basis="相同页面、动作和具体技术事实" if top.finding_kind == "technical_anomaly" and _hard_key(top) else
+                           "相同原预期、依据和动作的组织候选" if top.finding_kind == "cognitive_mismatch" else
+                           "独立证据" if len(evs) == 1 else "旧记录相似度组织候选；未证明共同根因",
         )
 
 
@@ -129,19 +154,33 @@ def _char_bigrams(text) -> set:
     return {t[i:i + 2] for i in range(len(t) - 1)}
 
 
-def _hard_key(evidence) -> tuple:
+def _hard_key(evidence) -> tuple | None:
     replay = evidence.replay or {}
-    page = replay.get("url", "") or ""
-    if evidence.classification == "technical_bug":
-        if replay.get("console"):
-            bucket = "console"
-        elif replay.get("network"):
-            bucket = "network"
-        else:
-            bucket = "technical"
-    else:
-        bucket = evidence.classification
-    return (page, bucket)
+    page = replay.get("final_url") or replay.get("url") or ""
+    if evidence.finding_kind is not None:
+        if evidence.finding_kind != "technical_anomaly":
+            return None
+        records = replay.get("source_signals") or []
+        facts = [signal_key(record) for record in records]
+        if not page or not facts or any(fact is None for fact in facts):
+            return None
+        return page, evidence.finding_kind, _action_key(evidence), tuple(sorted(facts))
+    signals = tuple((key, tuple(sorted(str(s) for s in replay.get(key) or [])))
+                    for key in ("console", "network", "js_exceptions") if replay.get(key))
+    http = tuple(sorted((str(k), str(v)) for k, v in (replay.get("http_status") or {}).items()))
+    if not page or not (signals or http) or evidence.classification != "technical_bug":
+        return None
+    return page, evidence.finding_kind, evidence.classification, signals, http
+
+
+def _action_key(evidence):
+    return json.dumps(evidence.action or {}, sort_keys=True, ensure_ascii=False)
+
+
+def _cognitive_key(evidence):
+    replay = evidence.replay or {}
+    return (replay.get("final_url") or replay.get("url"), _action_key(evidence), evidence.expectation,
+            json.dumps(evidence.expectation_basis, sort_keys=True, ensure_ascii=False))
 
 
 def _screenshot_hash(evidence) -> int | None:

@@ -2,6 +2,7 @@
 import io
 from types import SimpleNamespace
 
+import pytest
 from PIL import Image
 
 from alienqa.driver import Action, RuntimeSignals, Target
@@ -117,6 +118,31 @@ def test_visual_observer_parses_llm(monkeypatch):
     assert vo.changes == ["text_changed", "modal_opened"]
     assert vo.summary == "弹窗出现"
     assert 0.0 <= vo.blank_screen_score <= 1.0
+
+
+@pytest.mark.parametrize("raw", [
+    "not json",
+    "{}",
+    '{"changes": []}',
+    '{"summary": "没有变化"}',
+    '{"changes": null, "summary": "没有变化"}',
+    '{"changes": "no_change", "summary": "没有变化"}',
+    '{"changes": [null], "summary": "没有变化"}',
+    '{"changes": [""], "summary": "没有变化"}',
+    '{"changes": [], "summary": null}',
+    '{"changes": [], "summary": 3}',
+])
+def test_visual_observer_rejects_invalid_output(monkeypatch, raw):
+    engine, _ = _visual_engine(monkeypatch, [raw])
+    with pytest.raises(ValueError, match="视觉观察输出"):
+        engine.visual.observe(b"before", b"after", "click 保存")
+
+
+def test_visual_observer_accepts_explicit_no_changes(monkeypatch):
+    engine, _ = _visual_engine(monkeypatch, ['{"changes": [], "summary": "没有可见变化"}'])
+    result = engine.visual.observe(b"before", b"after", "click 保存")
+    assert result.changes == []
+    assert result.summary == "没有可见变化"
 
 
 # ---- 合并 Observation ----

@@ -42,11 +42,16 @@ def providers_from_config(config) -> list:
 class Settings:
     llm_keys: dict = field(default_factory=dict)  # provider -> key
     project_path: str = ""
+    mode: str = "browser"
+    base_url: str = ""
+    storage_state: str = ""
     unit: str = ""
     instructions: str = ""
 
     def apply_to_env(self) -> None:
         for provider, key in self.llm_keys.items():
+            if provider == "codex":
+                continue
             if not key:
                 continue
             env_name = PROVIDER_ENV.get(provider) or f"{provider.upper()}_API_KEY"
@@ -57,6 +62,9 @@ class Settings:
         return {
             "llm_keys": dict(self.llm_keys),
             "project_path": self.project_path,
+            "mode": self.mode,
+            "base_url": self.base_url,
+            "storage_state": self.storage_state,
             "unit": self.unit,
             "instructions": self.instructions,
         }
@@ -67,6 +75,9 @@ class Settings:
         return cls(
             llm_keys={str(k): str(v) for k, v in (data.get("llm_keys") or {}).items()},
             project_path=str(data.get("project_path") or ""),
+            mode=str(data.get("mode") or "source"),
+            base_url=str(data.get("base_url") or ""),
+            storage_state=str(data.get("storage_state") or ""),
             unit=str(data.get("unit") or ""),
             instructions=str(data.get("instructions") or ""),
         )

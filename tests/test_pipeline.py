@@ -54,6 +54,10 @@ def test_collect_browser_launches_before_map(monkeypatch):
         def interactive_elements(self):
             return []
 
+        def collect_runtime(self):
+            from alienqa.driver.runtime import RuntimeSignals
+            return RuntimeSignals()
+
     monkeypatch.setattr("alienqa.pipeline.PlaywrightDriver", _FakeDriver)
     pipeline = AlienQAPipeline(LLMConfig(roles={}), verbose=False)
     pipeline._map_from_browser = lambda driver, project: (order.append(("map",)) or ProductMap())

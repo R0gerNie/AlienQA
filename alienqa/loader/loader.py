@@ -9,9 +9,11 @@ from .framework import (
     extract_env,
     extract_routes,
     rank_frontend_apps,
+    manifest_facts, recognition,
 )
 from .models import Budget, FrontendApp, Project
-from .scan import load_json
+from .scan import load_json, discover_manifests
+from .routes import next_pages, route_metadata
 from .visibility import select_visible_files
 
 _BASE_URL = {
@@ -25,19 +27,42 @@ _BASE_URL = {
 
 
 class ProjectLoader:
-    def load(self, source) -> Project:
+    def load(self, source, app_manifest=None) -> Project:
         root = self._resolve(source)
         input_type = self.detect_input_type(source)
-        apps = detect_frontend_apps(root)
+        manifests, discovery = discover_manifests(root)
+        diagnostics = []
+        apps = detect_frontend_apps(root, manifests, diagnostics)
         ranked = rank_frontend_apps(root, apps)
         framework = ranked[0][0] if ranked else "Unknown"
         manifest = ranked[0][1] if ranked else None
+        if app_manifest is not None:
+            candidate = (root / str(app_manifest)).resolve()
+            if not candidate.is_relative_to(root) or not candidate.is_file() or candidate.name != 'package.json':
+                raise ValueError('应用 manifest 必须是项目内部存在的 package.json')
+            chosen = next((app for app in ranked if app[1] == candidate), None)
+            if chosen is None:
+                # An explicit existing file is bounded input even beyond discovery depth.
+                explicit_apps = detect_frontend_apps(root, [candidate], diagnostics)
+                if explicit_apps:
+                    ranked = rank_frontend_apps(root, [*ranked, *explicit_apps])
+                    chosen = explicit_apps[0]
+            if chosen is None:
+                raise ValueError('所选 manifest 未被识别为前端应用')
+            framework, manifest, _ = chosen
+        app_dir = manifest.parent if manifest else root
         start, build = extract_commands(manifest)
-        environment = extract_env(manifest)
-        routes = extract_routes(root, framework, manifest)
+        environment = extract_env(manifest, root)
+        hints, route_diagnostics, mode = route_metadata(root, framework, manifest)
+        routes = sorted({row["path"] for row in hints})
+        environment["router_mode"] = mode
+        environment["base_url_status"] = "script_hint" if self._detect_port(start) else "framework_hint"
         visible_files, audit = select_visible_files(root, framework, manifest)
-        return Project(
-            root=str(root),
+        project = Project(
+            root=str(root), app_dir=str(app_dir), selected_manifest=manifest.relative_to(root).as_posix() if manifest else '',
+            route_hints=hints, loader_audit={'discovery': discovery, 'diagnostics': diagnostics,
+                'route_diagnostics': route_diagnostics, 'selection': 'explicit' if app_manifest is not None else 'ranked_suggestion',
+                'limitations': ['literal routes only; dynamic templates are not visited URLs']},
             input_type=input_type,
             framework=framework,
             start=start,
@@ -52,6 +77,9 @@ class ProjectLoader:
             visible_files=visible_files,
             selection_audit=audit,
         )
+        from .artifacts import artifact_facts
+        project.artifacts["classification"] = artifact_facts(project)
+        return project
 
     def load_browser(self, base_url: str, routes: list[str] | None = None,
                      storage_state: str | None = None) -> Project:
@@ -73,6 +101,7 @@ class ProjectLoader:
                 name=name,
                 manifest=m.relative_to(root).as_posix(),
                 base_dir=m.parent.relative_to(root).as_posix(),
+                recognition=recognition(m, fw),
             )
             for fw, m, name in ranked
         ]
@@ -137,40 +166,30 @@ class ProjectLoader:
     def _detect_port(script: str):
         if not script:
             return None
-        for pat in (r"--port\s+(\d+)", r"-p\s+(\d+)", r"PORT[=\s]+(\d+)"):
+        for pat in (r"--port(?:\s+|=)(\d+)", r"-p(?:\s+|=)(\d+)", r"PORT[=\s]+(\d+)"):
             m = re.search(pat, script)
             if m:
-                return int(m.group(1))
+                port = int(m.group(1))
+                return port if 0 < port < 65536 else None
         return None
 
     def _merge_deps(self, manifest: Path | None) -> dict:
         if not manifest:
             return {}
-        data = load_json(manifest) or {}
+        data, _ = manifest_facts(manifest)
         return {**(data.get("dependencies") or {}), **(data.get("devDependencies") or {})}
 
     def _entry_points(self, root: Path, framework: str, manifest: Path | None) -> list:
         points = set()
         base = manifest.parent if manifest else root
-        if framework == "Next.js":
-            for d in ("app", "pages"):
-                dd = base / d
-                if not dd.is_dir():
-                    continue
-                if d == "app":
-                    for f in dd.rglob("page.*"):
-                        points.add(f.relative_to(root).as_posix())
-                else:
-                    for f in dd.rglob("index.*"):
-                        points.add(f.relative_to(root).as_posix())
-        elif framework in ("Vue", "Nuxt"):
-            for cand in ("app/javascript", "src"):
-                dd = root / cand
-                if not dd.is_dir():
-                    continue
-                for name in ("main.js", "main.ts", "main.jsx", "main.tsx", "entry.js", "entry.ts"):
-                    if (dd / name).exists():
-                        points.add(f"{cand}/{name}")
+        if framework == 'Next.js':
+            points.update(path.relative_to(root).as_posix() for _, path in next_pages(base)[0])
+        else:
+            for directory in ('app/javascript', 'src', '.'):
+                for name in ('main.js', 'main.ts', 'main.jsx', 'main.tsx', 'entry.js', 'entry.ts', 'index.html'):
+                    path = base / directory / name
+                    if path.is_file():
+                        points.add(path.relative_to(root).as_posix())
         return sorted(points)[:50]
 
     def _artifacts(self, framework: str) -> dict:

@@ -15,13 +15,14 @@ class Vector:
 
 @dataclass
 class Issue:
-    """多条同根因证据归并而成。"""
+    """Evidence 的组织候选；成员相似不证明共同根因。"""
 
     id: str = ""
     title: str = ""
     evidence_ids: list = field(default_factory=list)
     root_cause_candidate: str = ""  # 占位，11 再填
     severity: Severity = Severity.MINOR
+    grouping_basis: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -30,4 +31,5 @@ class Issue:
             "evidence_ids": list(self.evidence_ids),
             "root_cause_candidate": self.root_cause_candidate,
             "severity": self.severity.value,
+            "grouping_basis": self.grouping_basis,
         }

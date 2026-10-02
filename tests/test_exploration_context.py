@@ -40,10 +40,10 @@ def test_build_assembles_allowed_fields():
     state = _state(action={"type": "click", "target": {"text": "申请退款"}})
     obs = Observation(screenshot=b"\x89PNG", visible_text="订单列表")
     ctx = fw.build(_product_map(), state, obs, [state])
-    assert ctx.product_brief == "这是一个电商后台，可管理订单"
+    assert ctx.product_brief == "订单列表"
     assert ctx.visible_text == "订单列表"
     assert ctx.screenshot == b"\x89PNG"
-    assert ctx.navigation == [{"from": "/orders", "to": "/orders/:id", "kind": "navigate"}]
+    assert ctx.navigation == []
     assert ctx.action_history == ["click 申请退款"]
 
 
@@ -53,9 +53,9 @@ def test_forbidden_manifest_never_true():
     assert all(v is False for v in ctx.forbidden.values())
 
 
-def test_navigation_filters_current_route():
+def test_source_navigation_is_not_user_visible_context():
     ctx = ExplorationContext().build(_product_map(), _state(route="/login"), Observation(), [])
-    assert ctx.navigation == [{"from": "/login", "to": "/orders", "kind": "navigate"}]
+    assert ctx.navigation == []
 
 
 # ---- 认知边界可调 / 截图钩子 ----
@@ -117,5 +117,5 @@ def test_investigator_context_isolated():
 def test_to_dict_matches_planbook_shape():
     ctx = ExplorationContext().build(_product_map(), _state(), Observation(screenshot=b"img"), [])
     d = ctx.to_dict()
-    assert set(d["allowed"]) == {"screenshot", "visible_text", "action_history", "navigation", "product_brief"}
+    assert set(d["allowed"]) == {"screenshot", "visible_text", "action_history", "navigation", "product_brief", "visible_history"}
     assert set(d["forbidden"]) == {"prd", "dev_comments", "git_history", "known_bugs", "internal_rules", "tech_details"}

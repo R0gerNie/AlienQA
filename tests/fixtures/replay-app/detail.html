@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Replay detail</title>
+<body><h1>Order detail</h1><label>Message <input id="message"></label><button id="save">Save</button><p id="result"></p>
+<script>
+document.querySelector('#save').addEventListener('click', () => {
+  document.querySelector('#result').textContent = localStorage.getItem('sessionLabel') + ': ' + document.querySelector('#message').value;
+  localStorage.setItem('sessionLabel', 'final session');
+});
+</script></body></html>

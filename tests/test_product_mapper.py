@@ -155,12 +155,34 @@ def test_map_retries_when_json_invalid(mapper, fake_litellm, tmp_path):
     assert "不是合法 JSON" in fake_litellm.calls[2]["messages"][0]["content"]
 
 
-def test_map_returns_empty_when_all_json_invalid(mapper, fake_litellm, tmp_path):
+def test_map_raises_when_all_json_invalid(mapper, fake_litellm, tmp_path):
     project = Project(root=str(tmp_path))
     fake_litellm.texts.extend(["gist", "bad1", "bad2"])
-    result = mapper.map(project)
+    with pytest.raises(ValueError, match="产品地图输出"):
+        mapper.map(project)
+    assert len(fake_litellm.calls) == 3
+
+
+@pytest.mark.parametrize("raw", [
+    "{}",
+    '{"areas": null}',
+    '{"areas": {}}',
+    '{"areas": [null]}',
+    '{"areas": [], "relations": null}',
+    '{"areas": [], "relations": ["/orders"]}',
+])
+def test_map_rejects_invalid_schema(mapper, fake_litellm, raw):
+    fake_litellm.texts.extend(["gist", raw, raw])
+    with pytest.raises(ValueError, match="产品地图输出"):
+        mapper.map_from_browser(Project(), "一些可见文字")
+
+
+def test_map_accepts_explicit_empty_map(mapper, fake_litellm):
+    fake_litellm.texts.extend(["gist", '{"areas": [], "relations": []}'])
+    result = mapper.map_from_browser(Project(), "一些可见文字")
     assert result.areas == []
     assert result.relations == []
+    assert result.brief == "gist"
 
 
 def test_map_areas_returns_list_of_area(mapper, fake_litellm, tmp_path):

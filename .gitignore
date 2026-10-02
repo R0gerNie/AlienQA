@@ -10,6 +10,7 @@ env/
 .mypy_cache/
 .ruff_cache/
 .coverage
+coverage.xml
 htmlcov/
 
 # 构建与分发
@@ -27,6 +28,7 @@ report.html
 
 # 第三方基线仓库（克隆用于测试，不入库）
 baselines/
+examples/open-source/
 
 # IDE / 编辑器
 .vscode/

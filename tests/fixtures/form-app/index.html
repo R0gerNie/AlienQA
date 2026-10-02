@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Form exploration fixture</title>
+<body>
+<form id="signup">
+  <label>Email <input id="email" type="email" required></label>
+  <label>Country <select id="country" required><option value="">Choose</option><option value="cn">China</option></select></label>
+  <button id="submit" type="submit">Submit</button>
+</form>
+<p id="result"></p>
+<script>
+localStorage.setItem('seed', 'initial');
+document.querySelector('#signup').addEventListener('submit', event => {
+  event.preventDefault();
+  document.querySelector('#result').textContent = `Submitted ${document.querySelector('#email').value} / ${document.querySelector('#country').value}`;
+  localStorage.setItem('seed', 'changed');
+  location.hash = 'submitted';
+});
+</script>
+</body></html>

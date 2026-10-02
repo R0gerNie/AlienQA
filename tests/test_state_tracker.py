@@ -22,8 +22,8 @@ def test_signature_changes_route_or_text():
 
 
 def test_normalize_strips_timestamp_and_id_keeps_digits():
-    a = normalize("Order 2026-09-13 12:34:56 id-3f2a1b9c3f2a1b9c count: 5")
-    b = normalize("Order 2026-09-14 08:00:00 id-9c7d0f9c7d0f9c7d count: 5")
+    a = normalize("Clock: 2026-09-13 12:34:56\nid-3f2a1b9c3f2a1b9c count: 5")
+    b = normalize("Clock: 2026-09-14 08:00:00\nid-9c7d0f9c7d0f9c7d count: 5")
     assert a == b
     assert "count: 5" in a
 

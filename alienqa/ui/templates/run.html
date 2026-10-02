@@ -3,14 +3,83 @@
 <h1>扫描 <code>{{ rec.id }}</code></h1>
 <table>
   <tr><th>项目路径</th><td>{{ rec.project_path or '—' }}</td></tr>
+  <tr><th>扫描方式 / 地址</th><td>{{ rec.mode }} / {{ rec.base_url or '—' }}</td></tr>
   <tr><th>测试单元</th><td>{{ rec.unit or '—' }}</td></tr>
   <tr><th>单元指令</th><td>{{ rec.instructions or '—' }}</td></tr>
   <tr><th>入口文件（自动识别）</th><td>{{ rec.entry or '—' }}</td></tr>
   <tr><th>状态</th><td><span class="badge {{ rec.status }}">{{ rec.status }}</span></td></tr>
   <tr><th>开始 / 结束</th><td>{{ rec.started_at }} / {{ rec.finished_at or '—' }}</td></tr>
-  <tr><th>证据 / Issue / 采信</th><td>{{ rec.evidence_count }} / {{ rec.issue_count }} / {{ rec.accepted_count }}</td></tr>
+  <tr><th>证据 / Issue / 采信</th><td>{{ progress.evidence_count if progress.evidence_count is defined else '未记录' }} / {{ progress.issue_count if progress.issue_count is defined else '未记录' }} / {{ progress.confirmed if progress.confirmed is defined else '未记录' }}</td></tr>
+  <tr><th>数据读取 / 最后阶段 / 停止原因</th><td>{{ progress.data_status }} / {{ progress.last_stage or '未记录' }}（{{ progress.phase or '未记录' }}） / {{ progress.stop_reason or '未记录' }}（提交 {{ progress.checkpoint_seq or '未记录' }}）</td></tr>
+  <tr><th>预算</th><td>{{ rec.budget | tojson if rec.budget else '旧记录未记录' }}</td></tr>
+  <tr><th>实际尝试 / 执行完成 / 有效认知判定</th><td>{{ progress.attempts if progress.attempts is defined else '未记录' }} / {{ progress.executions if progress.executions is defined else '未记录' }} / {{ progress.cognitive_completed if progress.cognitive_completed is defined else '未记录' }}</td></tr>
+  <tr><th>技术异常 / 认知落差 / 待处理 / 采信</th><td>{{ progress.technical_findings if progress.technical_findings is defined else '未记录' }} / {{ progress.cognitive_findings if progress.cognitive_findings is defined else '未记录' }} / {{ progress.pending if progress.pending is defined else '未记录' }} / {{ progress.confirmed if progress.confirmed is defined else '未记录' }}</td></tr>
+  <tr><th>一般用户预期版本</th><td>{{ progress.prompt_versions | join(', ') if progress.prompt_versions else '未记录' }}</td></tr>
+  {% if progress.access_result %}<tr><th>页面访问结果</th><td>{{ progress.access_result | tojson }}；登录状态仍需核对，文件存在不代表已进入业务页面。</td></tr>{% endif %}
   {% if rec.error %}<tr><th>错误</th><td style="color:#cf222e;">{{ rec.error }}</td></tr>{% endif %}
 </table>
+
+{% if rec.source_context %}
+<details><summary>所选应用、路由提示与运行条件</summary>
+<p>路由模板和框架默认端口只用于定位提示，不代表访问覆盖。识别限制和实际服务条件记录如下。</p>
+<pre>{{ rec.source_context | tojson(indent=2) }}</pre></details>
+{% endif %}
+
+{% if rec.status == 'running' %}
+<p><button id="stop-run">停止扫描</button> <span id="stop-status"></span></p>
+<script>
+document.getElementById('stop-run').onclick = async function () {
+  this.disabled = true;
+  const response = await fetch('/api/run/{{ rec.id }}/stop', {method: 'POST'});
+  const body = await response.json();
+  document.getElementById('stop-status').textContent = response.ok ? '正在停止任务与浏览器…' : body.error;
+};
+setTimeout(() => location.reload(), 3000);
+</script>
+{% endif %}
+
+{% if progress.data_status != "available" %}<p class="badge partial">扫描数据 {{ progress.data_status }}：{{ progress.error or "未记录完整检查结果" }}</p>{% endif %}
+{% if diagnostics.incomplete %}
+<p class="badge partial">本次扫描有失败或无法判断的步骤，结果不足以证明页面没有问题。</p>
+{% endif %}
+{% if diagnostics.diagnostics %}
+<h2>运行诊断</h2>
+<ul>{% for item in diagnostics.diagnostics %}<li>{{ item.stage or item.component or '扫描' }}：{{ item.error or item.message or item.status }}</li>{% endfor %}</ul>
+{% endif %}
+{% if diagnostics.steps %}
+<h2>探索步骤</h2>
+<table><tr><th>动作</th><th>执行</th><th>认知检查</th><th>错误 / 无法判断原因</th></tr>
+{% for step in diagnostics.steps %}<tr><td>{{ step.action or '—' }}</td><td>{{ step.execution_status or '旧记录未记录' }}</td><td>{{ step.cognitive_status or step.status }}</td><td>{{ step.error or '—' }}</td></tr>{% endfor %}
+</table>
+{% for step in diagnostics.steps %}
+{% set generation = step.get('expectation_generation', {}) %}
+<div class="cognitive-generation">
+<p><strong>{{ step.step_id or '旧记录未记录步骤' }}</strong> · 检查覆盖：{{ generation.get('coverage', '未记录') }} · 局部判定：{{ step.get('judgment_result', {}).get('status', '未记录') }}</p>
+{% if step.get('execution') or step.get('interaction_coverage') %}
+<details><summary>动作定位、观察窗口与交互覆盖</summary><pre>{{ {'execution': step.get('execution', {}), 'coverage': step.get('interaction_coverage', {}), 'trajectory': step.get('trajectory', {})} | tojson(indent=2) }}</pre></details>
+{% endif %}
+{% if generation.get('coverage') == 'partial' %}<p class="badge partial">部分要求仍未决，局部判定不代表完整通过。</p>{% endif %}
+{% set sampling = generation.get('sampling', {}) %}
+{% if sampling %}<p>采样：{{ sampling.get('returned', 0) }} / {{ sampling.requested }} 已返回；{{ sampling.get('validated', 0) }} / {{ sampling.requested }} 已验证；完成：{{ '是' if sampling.get('complete') else '否' }}</p>
+{% else %}<p>旧记录：采样完成情况未记录。</p>{% endif %}
+<details><summary>事前采样要求与未决原因</summary>
+{% for group in generation.get('groups', []) %}
+<p>{{ group.text }} · {{ '已接纳' if group.decision == 'accepted' else '未决' if group.decision == 'unresolved' else '未交付' }} · {{ group.reason }}</p>
+<ul>{% for member in group.members %}<li>采样 {{ member.sample_index }} / 条目 {{ member.row_index }}：{{ member.text }}（{{ member.expectation_basis.type }}：{{ member.expectation_basis.reference }}）</li>{% endfor %}</ul>
+{% endfor %}
+{% for item in generation.get('unresolved', []) %}<p>未决：{{ item.reason }}</p><ul>{% for text in item.texts %}<li>{{ text }}</li>{% endfor %}</ul>{% endfor %}
+{% if generation.error %}<p>{{ generation.error }}</p>{% endif %}
+<pre>{{ {'merge_version': generation.get('merge_version', '未记录'), 'error_code': generation.get('error_code', '')} | tojson(indent=2) }}</pre></details>
+</div>
+{% endfor %}
+{% endif %}
+
+<h2>LLM 调用与用量</h2>
+<p class="muted">已知小计与未知费用分开；仅有动作/时间预算，停止本地任务不保证供应商停止计费。</p>
+{% if not usage.scan_accounting_recorded %}<p>扫描调用账目未记录；已有条目不能代表完整扫描费用。</p>{% endif %}
+{% if usage.data_status == 'absent' %}<p>未记录调用账目，费用未知。</p>{% endif %}
+{% if usage.data_status in ['corrupt', 'storage_failed'] %}<p class="badge partial">计量不完整：{{ usage.error or usage.errors }}</p>{% endif %}
+<details id="llm-usage" open><summary>调用 / 用量 / 费用明细汇总</summary><pre>{{ usage | tojson(indent=2) }}</pre></details>
 
 {% if scope %}
 <h2>单元定位结果</h2>
@@ -19,12 +88,10 @@
 {% if scope.keywords %}<p class="muted">关键词：{% for k in scope.keywords %}<code>{{ k }}</code> {% endfor %}</p>{% endif %}
 {% endif %}
 
-{% if report_exists %}
-<p><a href="/runs/{{ rec.id }}/report">查看报告</a> · <a href="/runs/{{ rec.id }}/review">重新审核</a></p>
-{% elif review_ready %}
-<p><a href="/runs/{{ rec.id }}/review">去审核（逐条采信）</a></p>
-{% elif rec.status == 'running' %}
-<p class="muted">扫描中，完成后进入审核…</p>
-{% endif %}
+{% if rec.status in ['done', 'partial', 'error', 'timeout', 'cancelled'] %}
+<p><a href="/runs/{{ rec.id }}/report?mode=analysis">{{ '查看' if analysis_exists else '生成' }} QA 与用户认知分析</a> · <a href="/runs/{{ rec.id }}/report?mode=analysis&download=1">下载分析</a></p>
+<p><a href="/runs/{{ rec.id }}/report?mode=confirmed">{{ '查看' if report_exists else '生成' }}确认问题报告</a> · <a href="/runs/{{ rec.id }}/report?mode=confirmed&download=1">下载确认问题报告</a></p>
+{% if review_ready %}<p><a href="/runs/{{ rec.id }}/review">处理发现与备注</a></p>{% endif %}
+{% elif rec.status == 'running' %}<p class="muted">扫描中，完成后进入分析与审核…</p>{% endif %}
 <p><a href="/history">← 返回历史</a></p>
 {% endblock %}

@@ -6,6 +6,7 @@
 from pathlib import Path
 
 from ..llm import LLMClient, LlmRoles
+from ..llm.jsonutil import loads_object
 from ..loader.models import Project
 from .filter import build_surface_text, read_readme
 from .models import ProductMap
@@ -20,7 +21,7 @@ class ProductMapper:
     def map(self, project: Project) -> ProductMap:
         root = self._root or (Path(project.root) if project.root else None)
         surface_text = build_surface_text(project, root)
-        readme = read_readme(root)
+        readme = read_readme(Path(project.app_dir) if project.app_dir else root)
         gist = self.roles.summarize_gist(readme, surface_text)
         pm = self._extract(gist, surface_text)
         pm.brief = gist
@@ -43,13 +44,22 @@ class ProductMapper:
         return pm
 
     def _extract(self, gist: str, surface_text: str) -> ProductMap:
-        """结构化提取 + JSON 解析，失败重试一次，仍失败返回空 ProductMap。"""
-        raw = self.roles.map_product(gist, surface_text)
-        try:
-            return ProductMap.from_json(raw)
-        except (ValueError, TypeError):
-            raw2 = self.roles.map_product(gist, surface_text, repair=True)
+        """结构化提取失败重试一次，仍失败显式报错，不能伪装成空产品地图。"""
+        last_error = None
+        for repair in (False, True):
+            raw = self.roles.map_product(gist, surface_text, repair=repair)
             try:
-                return ProductMap.from_json(raw2)
-            except (ValueError, TypeError):
-                return ProductMap()
+                data = loads_object(raw)
+                if "areas" not in data:
+                    raise ValueError("缺少 areas 列表；空地图需显式提供 areas: []")
+                for field in ("areas", "relations"):
+                    items = data.get(field, [])
+                    if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+                        raise ValueError(f"{field} 必须为对象组成的列表")
+                result = ProductMap.from_dict(data)
+                self.roles.mark_parse("succeeded")
+                return result
+            except (ValueError, TypeError) as exc:
+                self.roles.mark_parse("failed", exc)
+                last_error = exc
+        raise ValueError(f"产品地图输出在修复后仍无效: {last_error}") from last_error

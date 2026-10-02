@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "notice": "Minimal controlled-page text only. Evaluation annotations never enter prompts; independent review pending.",
+  "cases": [
+    {
+      "id": "variant-1-run-1-ST-00001",
+      "source": "n06-codex-20261002-second",
+      "action": "click 保存",
+      "samples": [
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，让我知道此次保存是否成功，或因何未能完成。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，说明保存成功、失败或当前无法保存；不限定反馈形式。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 1,
+      "expected_coverage": "complete",
+      "annotation": {
+        "author": "Codex assistant",
+        "independent_review": "pending",
+        "relation": "equivalent",
+        "reason": "当前保存动作的可见结果反馈，未强制反馈形式"
+      }
+    },
+    {
+      "id": "variant-2-run-1-ST-00001",
+      "source": "n06-codex-20261002-second",
+      "action": "click 保存",
+      "samples": [
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，使我能判断保存是否成功、失败或因当前状态无法完成；不限定反馈形式。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "点击「保存」后，界面应提供可观察的操作结果反馈，使我能判断保存是否成功、失败或因当前条件无法完成；不限定反馈形式。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 1,
+      "expected_coverage": "complete",
+      "annotation": {
+        "author": "Codex assistant",
+        "independent_review": "pending",
+        "relation": "equivalent",
+        "reason": "当前保存动作的可见结果反馈，未强制反馈形式"
+      }
+    },
+    {
+      "id": "variant-3-run-1-ST-00001",
+      "source": "n06-codex-20261002-second",
+      "action": "click 保存",
+      "samples": [
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，例如保存结果或无法保存的原因，不限定反馈形式。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈；若账户标识暂不可用导致无法保存，可说明该状态或原因，不必固定显示保存成功。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 0,
+      "expected_coverage": "none",
+      "annotation": {
+        "author": "Codex assistant",
+        "independent_review": "pending",
+        "relation": "relation_unknown",
+        "reason": "附加账户条件未被有限规则解释，保留未知"
+      }
+    },
+    {
+      "id": "variant-4-run-1-ST-00001",
+      "source": "n06-codex-20261002-second",
+      "action": "click 保存",
+      "samples": [
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，说明本次保存的结果或当前无法保存的原因。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，例如保存结果，或当前无法保存的说明；不限定反馈形式。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 1,
+      "expected_coverage": "complete",
+      "annotation": {
+        "author": "Codex assistant",
+        "independent_review": "pending",
+        "relation": "equivalent",
+        "reason": "当前保存动作的可见结果反馈，未强制反馈形式"
+      }
+    },
+    {
+      "id": "variant-4-run-1-ST-00002",
+      "source": "n06-codex-20261002-second",
+      "action": "click 保存下一项",
+      "samples": [
+        [
+          {
+            "text": "点击「保存下一项」后，界面应呈现本次操作的可观察结果，例如保存状态、无法保存的说明、按钮状态变化或导航反馈。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "点击「保存下一项」后，界面应给出本次操作的可见结果，例如保存状态更新、结果说明或按钮状态变化，让用户能判断操作是否完成或为何无法完成。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 1,
+      "expected_coverage": "complete",
+      "annotation": {
+        "author": "Codex assistant",
+        "independent_review": "pending",
+        "relation": "equivalent",
+        "reason": "当前保存动作的可见结果反馈，未强制反馈形式"
+      }
+    }
+  ]
+}

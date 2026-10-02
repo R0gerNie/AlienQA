@@ -166,6 +166,24 @@ def test_judge_uses_vision(client):
     assert "点击保存" in content[0]["text"]
 
 
+def test_expectations_prompt_targets_one_action(client):
+    roles = LlmRoles(client)
+    roles.generate_expectations("后台", "保存、删除按钮", samples=1, action_desc="点击保存")
+    text = client._fake.calls[0]["messages"][0]["content"]
+    assert "点击保存" in text
+    assert "仅针对本次动作" in text
+    assert "其它未执行" in text
+
+
+def test_judge_prompt_distinguishes_unknown_from_pass(client):
+    roles = LlmRoles(client)
+    roles.judge("点击保存", "应有成功提示", b"before", b"after")
+    text = client._fake.calls[0]["messages"][0]["content"][0]["text"]
+    assert "inconclusive" in text
+    assert "passed" in text
+    assert "原样" in text
+
+
 # ---- 配置加载（pyyaml）----
 
 def test_load_config_from_yaml(tmp_path):
@@ -202,3 +220,19 @@ def test_load_config_project_yaml():
     assert cfg.role(Role.REPORTER).model == "deepseek/deepseek-chat"
     assert cfg.role(Role.EXPECTATION).temperature == 0.8
     assert cfg.role(Role.VISUAL).temperature == 0.1
+
+
+def test_action_expectations_require_explicit_basis(client):
+    import json
+    client._fake.behavior = [json.dumps({"expectations": [{"text": "保存应有反馈", "expectation_basis": {
+        "type": "interaction_convention", "reference": "提交操作应说明结果"}}]})]
+    result = LlmRoles(client).generate_expectations("", "保存", samples=1,
+                                                   action_desc="click 保存", with_basis=True)
+    assert result[0]["expectation_basis"]["type"] == "interaction_convention"
+
+
+def test_action_expectations_do_not_fabricate_missing_basis(client):
+    client._fake.behavior = ['{"expectations": [{"text":"保存应有反馈"}]}']
+    with pytest.raises(ValueError, match="依据"):
+        LlmRoles(client).generate_expectations("", "保存", samples=1,
+                                               action_desc="click 保存", with_basis=True)

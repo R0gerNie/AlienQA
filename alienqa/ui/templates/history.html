@@ -9,9 +9,9 @@
     <td><code>{{ r.id }}</code></td>
     <td>{{ r.project_path or '—' }}</td>
     <td>{{ r.unit or '—' }}</td>
-    <td><span class="badge {{ r.status }}">{{ r.status }}</span></td>
-    <td>{{ r.evidence_count }}</td>
-    <td>{{ r.issue_count }}</td>
+    <td><span class="badge {{ r.status }}">{{ r.status }}</span> <span class="muted">{{ r.progress.data_status }} · {{ r.progress.phase or "未记录阶段" }}</span></td>
+    <td>{{ r.progress.evidence_count if r.progress.evidence_count is defined else "未记录" }}</td>
+    <td>{{ r.progress.issue_count if r.progress.issue_count is defined else "未记录" }}</td>
     <td><a href="/runs/{{ r.id }}">打开</a></td>
   </tr>
   {% else %}

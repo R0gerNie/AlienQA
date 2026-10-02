@@ -4,6 +4,8 @@
 """
 from .models import ExplorerContext, ScreenshotProcessor
 from .policy import ContextPolicy
+from alienqa.driver.runtime import clean_message
+from alienqa.driver.action import describe_visible_action
 
 
 class ExplorationContext:
@@ -21,14 +23,25 @@ class ExplorationContext:
     def build(self, product_map, state, observation, history) -> ExplorerContext:
         """只从各输入里裁剪白名单字段，组装 ExplorerContext。"""
         ctx = ExplorerContext()
-        if self.is_allowed("product_brief"):
-            ctx.product_brief = _brief(product_map)
+        ctx.state_id = getattr(state, "id", "") if state is not None else ""
         if self.is_allowed("visible_text"):
-            ctx.visible_text = _visible_text(state, observation)
-        if self.is_allowed("navigation"):
-            ctx.navigation = _navigation(product_map, state)
+            visible = clean_message(_visible_text(state, observation))
+            ctx.visible_text = visible[:4000]
+            ctx.input_limits["visible_text_truncated"] = len(visible) > 4000
+        if self.is_allowed("product_brief"):
+            ctx.product_brief = ctx.visible_text[:1000]
+        # Source-derived map edges/brief are locator inputs, never user priors.
         if self.is_allowed("action_history"):
-            ctx.action_history = _history(history)
+            completed = [s for s in history or [] if isinstance(s, dict)
+                         and s.get("execution_status") == "completed"
+                         and isinstance(s.get("visible_result"), str) and s.get("step_id")]
+            ctx.visible_history = [{"step_id": s["step_id"], "action": describe_visible_action(s.get("action")),
+                                    "visible_result": clean_message(s["visible_result"])[:1000],
+                                    "result_truncated": len(s["visible_result"]) > 1000}
+                                   for s in completed[-5:]]
+            ctx.input_limits["history_truncated"] = len(completed) > 5
+            legacy = [s for s in history or [] if not isinstance(s, dict) or "execution_status" not in s]
+            ctx.action_history = [s["action"] for s in ctx.visible_history] if completed else _history(legacy)[-5:]
         if self.is_allowed("screenshot"):
             ctx.screenshot = self.screenshot_processor.process(_screenshot(observation))
         ctx.forbidden = {f: False for f in self.policy.forbidden}
@@ -36,12 +49,6 @@ class ExplorationContext:
 
 
 # ---- 输入适配器（只取白名单字段，多的一律不碰） ----
-
-def _brief(product_map) -> str:
-    if product_map is None:
-        return ""
-    return getattr(product_map, "brief", "") or ""
-
 
 def _visible_text(state, observation) -> str:
     if observation is not None and getattr(observation, "visible_text", ""):
@@ -57,31 +64,19 @@ def _screenshot(observation) -> bytes | None:
     return getattr(observation, "screenshot", None)
 
 
-def _navigation(product_map, state) -> list:
-    if product_map is None or state is None:
-        return []
-    route = getattr(state, "route", "") or ""
-    out = []
-    for rel in getattr(product_map, "relations", []) or []:
-        src = getattr(rel, "from_", None)
-        if src is None:
-            src = getattr(rel, "from", "")
-        if src == route:
-            out.append({"from": route, "to": getattr(rel, "to", ""), "kind": getattr(rel, "kind", "navigate")})
-    return out
-
-
 def _describe_action(action) -> str:
     if action is None:
         return ""
     if isinstance(action, dict):
+        if "state_id" in action and "action" in action:
+            return _describe_action(action["action"])
         act_type = action.get("type") or action.get("action") or ""
         target = action.get("target") or {}
         if isinstance(target, dict):
             label = target.get("text") or target.get("selector") or ""
         else:
             label = str(target)
-        return " ".join(x for x in (str(act_type), str(label)) if x).strip()
+        return " ".join(x for x in (str(act_type), str(label)) if x).strip()[:200]
     return str(action)
 
 

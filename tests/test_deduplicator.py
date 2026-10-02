@@ -42,6 +42,22 @@ def test_hard_cluster_same_page_same_type():
     assert set(issues[0].evidence_ids) == {"EV-1", "EV-2"}
 
 
+def test_same_page_same_type_with_distinct_signals_stays_separate():
+    evs = [
+        _ev("EV-1", "save confirmation", "save crashed", "technical_bug", "http://x", replay={
+            "url": "http://x", "console": ["TypeError: save handler missing"]}),
+        _ev("EV-2", "refund dialog", "refund inaccessible", "technical_bug", "http://x", replay={
+            "url": "http://x", "console": ["ReferenceError: refund unavailable"]}),
+    ]
+    assert len(Deduplicator().cluster(evs)) == 2
+
+
+def test_same_page_missing_feedback_on_different_controls_stays_separate():
+    evs = [_ev("EV-1", "save confirmation", "nothing saved", "missing_feedback", "http://x"),
+           _ev("EV-2", "refund dialog", "dialog absent", "missing_feedback", "http://x")]
+    assert len(Deduplicator().cluster(evs)) == 2
+
+
 # ---- 软聚类（验收：5 条白屏跨页面归并） ----
 
 def test_soft_cluster_blank_screens_cross_page(tmp_path):

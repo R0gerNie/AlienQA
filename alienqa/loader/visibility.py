@@ -80,7 +80,8 @@ def select_visible_files(
     audit = SelectionAudit()
     candidates = []  # (ui_score, rel, lines, role, chars)
 
-    for f in iter_repo_files(root):
+    app_base = manifest_dir.parent if manifest_dir and manifest_dir.is_file() else manifest_dir or root
+    for f in iter_repo_files(app_base):
         audit.total_files += 1
         name = f.name
         if any(p in name for p in TEST_PATTERNS):
@@ -94,8 +95,24 @@ def select_visible_files(
             continue
         if Path(name).suffix.lower() not in FRONTEND_EXTENSIONS:
             continue
+        if framework == 'Next.js':
+            from .routes import next_directories
+            excluded = False
+            for router, directory in next_directories(app_base):
+                if not f.is_relative_to(directory):
+                    continue
+                parts = f.relative_to(directory).parts
+                excluded = (router == 'pages' and (parts[0] == 'api' or f.stem == '_document')) or (
+                    router == 'app' and (f.stem == 'route' or any(p.startswith(('_', '@', '(.)', '(..)', '(...)')) for p in parts[:-1])))
+                if excluded:
+                    break
+            if excluded:
+                audit.excluded_backend += 1
+                continue
         rel = f.relative_to(root).as_posix()
-        if not any(rel == p or rel.startswith(p + "/") for p in prefixes):
+        app_entry = framework in ('React', 'Vue', 'Nuxt') and f.parent == app_base and (
+            f.suffix.lower() in ('.jsx', '.tsx', '.vue', '.html') or f.stem.lower() in ('app', 'main', 'index'))
+        if not app_entry and not any(rel == p or rel.startswith(p + "/") for p in prefixes):
             continue
         text = _read_limited(f, budget)
         candidates.append((

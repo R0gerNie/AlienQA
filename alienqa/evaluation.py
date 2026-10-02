@@ -1,0 +1,199 @@
+"""Explicit, bounded real-model evaluation; reference answers stay evaluator-side.
+
+Run with ``python -m alienqa.evaluation --max-calls N --output NEW_DIRECTORY``.
+Default pytest never invokes this runner's real models.
+"""
+import argparse
+from collections import Counter
+from dataclasses import asdict
+from pathlib import Path
+import sys
+
+from .__main__ import _serve
+from .expectation.contracts import PROMPT_VERSION
+from .expectation.sampling import MERGE_VERSION
+from .cognitive_diagnostics import generation_view
+from .llm import load_config
+from .llm.client import RequestLimitExceeded
+from .llm.metering import close_unfinished, load_summary, public_text, public_value
+from .loader import ProjectLoader
+from .persistence import atomic_write_bytes, atomic_write_json
+from .pipeline import AlienQAPipeline
+from .review import ReportBuilder, ReviewState
+from .run_writer import RunWriter, load_snapshot
+
+
+class InvocationBudget:
+    def __init__(self, maximum):
+        if maximum < 1:
+            raise ValueError("调用预算必须大于零")
+        self.maximum, self.used = maximum, 0
+
+    def reserve(self, model):
+        if self.used >= self.maximum:
+            raise RequestLimitExceeded("真实模型调用预算已用尽，未启动新的请求")
+        self.used += 1
+
+
+def control_cases(repeats):
+    references = {
+        1: "按钮改为已保存并禁用属于明确反馈，不要求 toast。",
+        2: "点击后没有可见变化，JS 异常是独立技术候选；核对是否存在合理反馈预期。",
+        3: "请先填写邮箱是可接受的校验结果，不要求必定保存成功。",
+        4: "第二步应能引用第一步已保存的可见结果；不引用未来步骤。",
+    }
+    return [{"id": f"variant-{variant}-run-{repeat}", "variant": variant, "repeat": repeat,
+             "max_actions": 2 if variant == 4 else 1, "reference": reference, "case_type": "control"}
+            for repeat in range(1, repeats + 1) for variant, reference in references.items()]
+
+
+def evaluation_step(step):
+    view = generation_view(step)
+    return {"step_id": step.get("step_id"), "status": step.get("status"),
+            "cognitive_status": step.get("cognitive_status"), "execution_status": step.get("execution_status"),
+            "expectations": len(step.get("expectations", [])), "coverage": view["coverage"],
+            "sampling": view["sampling"], "local_judgment_status": view["local_judgment_status"],
+            "accepted_groups": sum(group.get("decision") == "accepted" for group in view["groups"]),
+            "unresolved": len(view["unresolved"]),
+            "unresolved_reasons": dict(Counter(item.get("reason_code", "unrecorded") for item in view["unresolved"])),
+            "sample_parse_failures": sum(sample.get("error_stage") == "parse" for sample in view["samples"]),
+            "generation_failed": step.get("phases", {}).get("expectation") == "failed",
+            "judge_failed": view["local_judgment_status"] == "failed",
+            "prompt_version": view["prompt_version"], "merge_version": view["merge_version"]}
+
+
+def summarize_records(rows):
+    steps = [evaluation_step(step) if "expectation_generation" in step else step
+             for row in rows for step in row.get("steps", [])]
+    counts = Counter(step.get("status", "unknown") for step in steps)
+    coverage = Counter(step.get("coverage", "unrecorded") for step in steps)
+    unresolved = Counter()
+    for step in steps:
+        unresolved.update(step.get("unresolved_reasons", {}))
+    usable = sum(step.get("status") in {"passed", "mismatch"} and step.get("coverage") == "complete"
+                 and step.get("sampling", {}).get("complete") is True
+                 and step.get("execution_status") == "completed" for step in steps)
+    return {"planned_runs": len(rows), "executed_runs": sum(row["status"] != "not_started" for row in rows),
+            "planned_actions": sum(row.get("max_actions", 0) for row in rows),
+            "planned_actions_unrecorded_runs": sum("max_actions" not in row for row in rows),
+            "executed_actions": sum(step.get("execution_status") in {"completed", "failed"} for step in steps),
+            "run_statuses": dict(Counter(row["status"] for row in rows)), "step_statuses": dict(counts),
+            "usable_cognitive_steps": usable, "coverage_counts": dict(coverage),
+            "local_usable_cognitive_steps": sum(step.get("coverage") == "partial" and
+                 step.get("local_judgment_status") in {"passed", "mismatch"} for step in steps),
+            "sampling_complete_steps": sum(step.get("sampling", {}).get("complete") is True for step in steps),
+            "accepted_groups": sum(step.get("accepted_groups", 0) for step in steps),
+            "unresolved_groups": sum(step.get("unresolved", 0) for step in steps),
+            "unresolved_reason_counts": dict(unresolved),
+            "generation_failed_steps": sum(step.get("generation_failed", False) for step in steps),
+            "sample_parse_failures": sum(step.get("sample_parse_failures", 0) for step in steps),
+            "judge_failed_steps": sum(step.get("judge_failed", False) for step in steps),
+            "inconclusive_steps": counts["inconclusive"], "failed_steps": counts["failed"],
+            "unreviewed_runs": sum(row.get("assessment") == "pending" for row in rows),
+            "n06_closed": False, "real_application_evaluated": False,
+            "notice": "控制样例结果不等于准确率；未决、失败和未执行均保留。真实应用和人工复核另行验收。"}
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="N06 控制样例的有界真实模型验收")
+    parser.add_argument("--config", default="config/codex.yaml")
+    parser.add_argument("--fixtures", default="tests/fixtures")
+    parser.add_argument("--output", required=True, help="新的验收结果目录")
+    parser.add_argument("--max-calls", type=int, required=True, help="所有 run 共用的供应商请求/CLI 启动上限")
+    parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument("--samples", type=int, default=2)
+    parser.add_argument("--variants", type=int, nargs="+", choices=(1, 2, 3, 4), default=[1, 2, 3, 4],
+                        help="选择控制样例，用于明确标记的定向对照")
+    parser.add_argument("--max-seconds", type=float, default=600)
+    args = parser.parse_args(argv)
+    if min(args.max_calls, args.repeats, args.samples) < 1 or args.max_seconds <= 0:
+        parser.error("预算、重复、采样及时间必须大于零")
+    directory = Path(args.output)
+    if directory.exists() and any(directory.iterdir()):
+        parser.error("验收目录已有产物，请使用新的目录")
+    fixtures = Path(args.fixtures).resolve()
+    if not (fixtures / "cognition-app" / "index.html").is_file():
+        parser.error("缺少 cognition-app 控制样例；请指定 --fixtures")
+    config = load_config(args.config)
+    directory.mkdir(parents=True, exist_ok=True)
+    cases = [case for case in control_cases(args.repeats) if case["variant"] in args.variants]
+    budget = InvocationBudget(args.max_calls)
+    manifest = {"schema_version": 2, "prompt_version": PROMPT_VERSION, "merge_version": MERGE_VERSION,
+                "judge_prompt_version": "judgment-v2", "config": public_value(asdict(config)),
+                "fixture": "cognition-app", "samples": args.samples, "max_calls": args.max_calls,
+                "max_seconds_per_run": args.max_seconds, "cases": cases,
+                "reference_policy": "references stay here and are never passed to pipeline/model prompts"}
+    atomic_write_json(directory / "manifest.json", manifest)
+    records = [{**case, "status": "not_started", "steps": [], "assessment": "pending"} for case in cases]
+
+    def checkpoint():
+        atomic_write_json(directory / "evaluation.json", {"schema_version": 2, "invocations_used": budget.used,
+                          "runs": records, "summary": summarize_records(records)})
+
+    checkpoint()
+    server = None
+    try:
+        server, base_url = _serve(str(fixtures))
+        for row in records:
+            if budget.used >= budget.maximum:
+                row["not_started_reason"] = "invocation_budget"
+                checkpoint()
+                continue
+            run_dir = directory / row["id"]
+            url = f"{base_url}/cognition-app/index.html?variant={row['variant']}"
+            row.update(status="running", url=url, run_dir=row["id"])
+            checkpoint()
+            pipeline = AlienQAPipeline(config, samples=args.samples, max_actions=row["max_actions"],
+                                       max_seconds=args.max_seconds, browser="chromium", artifacts_dir=run_dir, verbose=False)
+            pipeline.client.before_request = budget.reserve
+            try:
+                result = pipeline.collect(ProjectLoader().load_browser(url))
+                result.save(run_dir)
+                saved = load_snapshot(run_dir)
+                context = {key: saved[key] for key in ("run_id", "checkpoint_seq", "phase", "stop_reason", "incomplete", "steps", "scope")}
+                context.update(run_dir=str(run_dir.resolve()), status="partial" if result.incomplete else "done",
+                               input_type="browser", base_url=url,
+                               budget={"max_actions": row["max_actions"], "max_seconds": args.max_seconds, "samples": args.samples})
+                state = ReviewState()
+                atomic_write_json(run_dir / "review.json", {})
+                report = ReportBuilder(pipeline.client).build(result.evidences, state, result.investigations,
+                                  diagnostics=result.review_diagnostics, mode="analysis", scan_context=context)
+                atomic_write_bytes(run_dir / "analysis.html", report.html.encode("utf-8"))
+                row.update(status="partial" if result.incomplete else "completed", run_id=result.run_id,
+                           stop_reason=result.stop_reason, steps=[evaluation_step(step) for step in result.steps],
+                           evidence_counts=dict(Counter(ev.finding_kind for ev in result.evidences)), diagnostics=result.review_diagnostics)
+                try:
+                    close_unfinished(run_dir, result.run_id, row["status"])
+                except (OSError, ValueError) as exc:
+                    row["metering_error"] = public_text(exc)
+                row["usage"] = load_summary(run_dir, result.run_id)
+            except Exception as exc:
+                row.update(status="error", error=public_text(exc))
+            checkpoint()
+            print(f"[evaluation] {row['id']}: {row['status']}；调用 {budget.used}/{budget.maximum}", flush=True)
+    except KeyboardInterrupt:
+        for row in records:
+            if row["status"] == "running":
+                row.update(status="cancelled", error="用户中断，保留已提交前缀")
+                try:
+                    run_dir = directory / row["run_dir"]
+                    writer = RunWriter(run_dir)
+                    writer.append_terminal_diagnostic("cancelled", row["error"], "evaluation")
+                    close_unfinished(run_dir, writer.run_id, "cancelled")
+                    row["run_id"] = writer.run_id
+                    row["steps"] = load_snapshot(run_dir)["steps"]
+                    row["usage"] = load_summary(run_dir, writer.run_id)
+                except (OSError, ValueError) as exc:
+                    row["recovery_error"] = public_text(exc)
+        checkpoint()
+        return 130
+    finally:
+        if server:
+            server.shutdown()
+            server.server_close()
+    print(f"[evaluation] 结果 → {directory / 'evaluation.json'}；N06 真实应用与复核 gate 保持开放", flush=True)
+    return 0 if all(row["status"] == "completed" for row in records) else 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Required form fixture</title>
+<body>
+<form id="signup">
+  <label>Country <select id="country" required><option value="">Choose</option><option value="cn">China</option><option value="us">United States</option></select></label>
+  <button id="submit" type="submit">Submit</button>
+  <label><input id="terms" type="checkbox" required>Accept terms</label>
+</form>
+<p id="result"></p>
+<script>
+document.querySelector('#signup').addEventListener('submit', event => {
+  event.preventDefault();
+  document.querySelector('#result').textContent = `Submitted ${document.querySelector('#country').value} / accepted`;
+});
+</script>
+</body></html>

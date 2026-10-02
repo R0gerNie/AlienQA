@@ -1,0 +1,1 @@
+{"name":"alienqa-t02-next-fixtures","version":"1.0.0","private":true,"scripts":{"build":"next build","start":"next start --hostname 127.0.0.1"},"dependencies":{"next":"16.3.8","react":"19.3.0","react-dom":"19.3.0"}}

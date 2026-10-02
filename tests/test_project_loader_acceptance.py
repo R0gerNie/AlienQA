@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.baseline
+
 loader = pytest.importorskip("alienqa.loader", reason="Project Loader 尚未实现")
 
 ROOT = Path(__file__).resolve().parents[1]

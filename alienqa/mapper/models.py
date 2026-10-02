@@ -69,7 +69,7 @@ class Relation:
 
 @dataclass
 class ProductMap:
-    """产品地图：功能区域 + 页面关系。brief 为主旨文本（03 的 product_brief 来源）。"""
+    """产品地图：功能区域 + 页面关系；仅供定位/调查，不作为一般用户预期输入。"""
 
     areas: list = field(default_factory=list)      # list[Area]
     relations: list = field(default_factory=list)  # list[Relation]

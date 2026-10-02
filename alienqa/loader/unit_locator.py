@@ -79,7 +79,9 @@ class UnitLocator:
                 scope.selectors = _as_str_list(data.get("selectors"))
                 scope.keywords = _as_str_list(data.get("keywords"))
                 scope.summary = str(data.get("summary") or "").strip()
+                self.roles.mark_parse("succeeded")
                 return scope
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as exc:
+                self.roles.mark_parse("failed", exc)
                 continue
         return scope

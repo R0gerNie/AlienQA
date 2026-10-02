@@ -8,13 +8,23 @@
 {% if saved %}<p><span class="badge done">已保存</span></p>{% endif %}
 <form method="post">
   {% for p in providers %}
+  {% if p == 'codex' %}
+  <p>Codex 使用本机已有的 ChatGPT 登录。首次使用请运行 <code>codex login</code>，无需在此填写 API 密钥；调用消耗账号可用额度。</p>
+  {% else %}
   <label>{{ p }} 密钥</label>
   <input type="password" name="key_{{ p }}" value="{{ settings.llm_keys.get(p, '') }}" placeholder="sk-...">
+  {% endif %}
   {% endfor %}
   {% if not providers %}<p class="muted">config.yaml 中未配置任何模型。</p>{% endif %}
 
   <label>默认项目路径</label>
   <input type="text" name="project_path" value="{{ settings.project_path }}">
+
+  <label>默认网站 / 运行 URL</label>
+  <input type="text" name="base_url" value="{{ settings.base_url }}">
+
+  <label>默认登录态文件</label>
+  <input type="text" name="storage_state" value="{{ settings.storage_state }}">
 
   <label>默认测试单元</label>
   <input type="text" name="unit" value="{{ settings.unit }}">

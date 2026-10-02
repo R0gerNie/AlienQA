@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "notice": "Controlled-page samples only; annotations stay evaluator-side, independent review pending.",
+  "cases": [
+    {
+      "id": "variant-1-run-1-ST-00001",
+      "source": "n03-calibration-20261002-targeted",
+      "action": "click 保存",
+      "samples": [
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，说明保存成功、未成功或当前无法保存。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "点击保存后，界面应提供可查看的操作结果，说明保存成功、失败或当前无法保存；反馈形式不限。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 1,
+      "expected_coverage": "complete",
+      "annotation": {
+        "author": "Codex assistant",
+        "independent_review": "pending",
+        "relation": "equivalent",
+        "reason": "可查看/未成功/形式不限均为可见结果反馈的完整表述"
+      }
+    },
+    {
+      "id": "variant-1-run-2-ST-00001",
+      "source": "n03-calibration-20261002-targeted",
+      "action": "click 保存",
+      "samples": [
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，让我知道此次保存是否成功、未完成或因当前状态无法执行。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，让我判断本次保存是否成功、失败或因当前状态无法完成。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 1,
+      "expected_coverage": "complete",
+      "annotation": {
+        "author": "Codex assistant",
+        "independent_review": "pending",
+        "relation": "equivalent",
+        "reason": "可查看/未成功/形式不限均为可见结果反馈的完整表述"
+      }
+    },
+    {
+      "id": "variant-2-run-1-ST-00001",
+      "source": "n03-calibration-20261002-targeted",
+      "action": "click 保存",
+      "samples": [
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，让我知道保存是否成功、未完成或受到限制；不限定反馈形式。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，使我能判断保存是否成功、失败或因当前状态无法完成；不限定具体反馈形式。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 1,
+      "expected_coverage": "complete",
+      "annotation": {
+        "author": "Codex assistant",
+        "independent_review": "pending",
+        "relation": "equivalent",
+        "reason": "可查看/未成功/形式不限均为可见结果反馈的完整表述"
+      }
+    },
+    {
+      "id": "variant-2-run-2-ST-00001",
+      "source": "n03-calibration-20261002-targeted",
+      "action": "click 保存",
+      "samples": [
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈；若当前账户标识暂不可用导致无法保存，也可显示相应说明。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "点击保存后，界面应提供可观察的操作结果反馈，让我能判断保存是否完成，或是否因当前状态无法保存；不限定反馈形式。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "点击保存后可以查看操作结果。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 0,
+      "expected_coverage": "none",
+      "annotation": {
+        "author": "Codex assistant",
+        "independent_review": "pending",
+        "relation": "relation_unknown",
+        "reason": "附加账户条件未被有限规则解释"
+      }
+    }
+  ]
+}

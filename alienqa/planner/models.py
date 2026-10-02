@@ -14,9 +14,13 @@ class Candidate:
     tag: str = ""
     href: str = ""
     role: str = ""
+    form_key: str = ""
+    input_type: str = ""
+    form_preparation: bool = False
 
 
 @dataclass
 class ExploreBudget:
     max_steps: int = 50
     max_time_seconds: float = 300.0
+    max_failures_per_action: int = 2

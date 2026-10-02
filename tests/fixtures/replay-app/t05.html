@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><title>T05 replay</title>
+<label>Name <input id="name"></label><button id="prepare">Prepare</button><button id="target">Submit</button>
+<output id="status"></output>
+<script>
+const mode = new URLSearchParams(location.search).get('mode');
+if (mode === 'entry') setTimeout(() => {throw new TypeError('T05 entry component unavailable')}, 50);
+document.querySelector('#prepare').onclick = () => {
+  history.pushState({}, '', location.pathname + location.search + '#ready');
+  document.querySelector('#status').textContent = 'Ready ' + document.querySelector('#name').value;
+  if (mode === 'prefix') setTimeout(() => {throw new TypeError('T05 shared handler unavailable')}, 20);
+};
+document.querySelector('#target').onclick = () => {
+  document.querySelector('#status').textContent = 'Submitted';
+  if (mode === 'target' || mode === 'prefix') setTimeout(() => {throw new TypeError('T05 shared handler unavailable')}, 20);
+  if (mode === 'http') fetch('/t05-api', {method: 'POST'});
+};
+</script>

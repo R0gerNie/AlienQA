@@ -117,3 +117,34 @@ def test_persist_writes_db(tmp_path):
     evs = engine.build([_mismatch()], _observation(), None, None, None)
     engine.persist(evs[0])
     assert store.all_ids() == ["EV-00001"]
+
+
+def test_persist_saves_replay_and_action_time_dom(tmp_path):
+    import json
+    from types import SimpleNamespace
+
+    store = EvidenceStore(tmp_path / "evidence.db")
+    engine = EvidenceEngine(tmp_path / "artifacts", store)
+    before = SimpleNamespace(id="S-before", route="http://x", snapshot="<button>Save</button>")
+    after = SimpleNamespace(id="S-after", route="http://x/done", snapshot="<p>Saved</p>")
+    ev = engine.build([_mismatch()], _observation(), Action("type", Target(selector="#name"), text="Alice"),
+                      after, _FakeDriver(), before_state=before)[0]
+    engine.persist(ev)
+    pkg = json.loads((tmp_path / "artifacts/replay/EV-00001.json").read_text())
+    assert pkg["action"]["text"] == "Alice"
+    assert pkg["before_state_id"] == "S-before"
+    assert pkg["after_state_id"] == "S-after"
+    assert "Saved" in open(pkg["artifacts"]["dom_after"]).read()
+
+
+def test_evidence_preserves_driver_initial_storage_state(tmp_path):
+    class Driver(_FakeDriver):
+        def replay_data(self):
+            return {"url": "http://x/start", "storage_state": {"cookies": [], "origins": [{"origin": "http://x"}]}}
+
+        def storage_state(self):
+            raise AssertionError("current storage must not overwrite initial state")
+
+    engine = EvidenceEngine(tmp_path / "artifacts", EvidenceStore(tmp_path / "evidence.db"))
+    ev = engine.build([_mismatch()], _observation(), None, None, Driver())[0]
+    assert ev.replay["storage_state"]["origins"] == [{"origin": "http://x"}]

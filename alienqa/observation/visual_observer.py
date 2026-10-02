@@ -16,9 +16,19 @@ class VisualObserver:
         if before is not None or after is not None:
             raw = self.roles.observe_visual(before, after, action_desc)
             try:
-                vo = VisualObservation.from_dict(loads_object(raw))
-            except (ValueError, TypeError):
-                vo = VisualObservation()
+                data = loads_object(raw)
+                changes = data.get("changes")
+                if not isinstance(changes, list) or any(
+                    not isinstance(change, str) or not change.strip() for change in changes
+                ):
+                    raise ValueError("changes 必须为非空字符串组成的列表")
+                if not isinstance(data.get("summary"), str):
+                    raise ValueError("summary 必须为字符串")
+                vo = VisualObservation.from_dict(data)
+                self.roles.mark_parse("succeeded")
+            except (ValueError, TypeError) as exc:
+                self.roles.mark_parse("failed", exc)
+                raise ValueError(f"视觉观察输出无效: {exc}") from exc
         vo.blank_screen_score = blank_screen_score(after if after is not None else before, page_text)
         return vo
 

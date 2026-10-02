@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>保存设置</title>
+<style>body{font:18px sans-serif;margin:48px}button,input{font:inherit;margin:12px;padding:8px}</style>
+<h1>保存设置</h1>
+<p>点击保存后可以查看操作结果。</p>
+<label>账户标识 <input readonly value="只读账户"></label>
+<button disabled>暂不可用</button>
+<button id="save">保存</button>
+<p id="result" aria-live="polite"></p>
+<script>
+const variant = new URLSearchParams(location.search).get('variant') || '1';
+const save = document.querySelector('#save');
+save.onclick = () => {
+  if (variant === '2') throw new Error('fixture action exception');
+  if (variant === '3') {
+    document.querySelector('#result').textContent = '请先填写邮箱，再保存设置';
+    return;
+  }
+  save.textContent = '已保存';
+  save.disabled = true;
+  if (variant === '4') {
+    const next = document.createElement('button');
+    next.id = 'next'; next.textContent = '保存下一项';
+    next.onclick = () => { next.textContent = '下一项已保存'; next.disabled = true; };
+    document.body.append(next);
+  }
+};
+</script>
+</html>

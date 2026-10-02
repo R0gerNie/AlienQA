@@ -1,5 +1,6 @@
 """ObservationEngine：合并视觉观察（LLM）与运行时观察（确定性）。"""
 from ..llm import LLMClient
+from ..driver.action import describe_visible_action
 from .models import Observation
 from .runtime_observer import RuntimeObserver
 from .visual_observer import VisualObserver
@@ -12,10 +13,15 @@ class ObservationEngine:
 
     def observe(self, before, after, action, page, before_runtime=None) -> Observation:
         """before/after 为截图 bytes；action 为 Action；page 为 driver。"""
+        runtime = self.observe_runtime(page, before_runtime)
+        return self.observe_visual(before, after, action, page, runtime)
+
+    def observe_runtime(self, page, before_runtime=None):
+        return self.runtime.observe(page, before=before_runtime)
+
+    def observe_visual(self, before, after, action, page, runtime) -> Observation:
         desc = _action_desc(action)
-        page_text = _page_text(page)
-        visual = self.visual.observe(before, after, desc, page_text=page_text)
-        runtime = self.runtime.observe(page, before=before_runtime)
+        visual = self.visual.observe(before, after, describe_visible_action(action), page_text=_page_text(page))
         return Observation(
             before_image=before,
             after_image=after,

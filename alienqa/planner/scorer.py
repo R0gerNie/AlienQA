@@ -1,4 +1,6 @@
 """价值评分器：确定性启发式（greedy）。"""
+from alienqa.state.signature import route_path
+
 RISK_KEYWORDS = (
     "删除", "清空", "支付", "退款", "注销", "永久", "提交订单", "取消订阅",
     "delete", "remove", "pay", "refund", "deactivate", "clear",
@@ -32,7 +34,7 @@ def score(candidate, clicked: set, explored_routes: set) -> float:
     if _has_any(candidate.text, BOUNDARY_KEYWORDS):
         s += 3.0
     # novelty：链接指向未探索 route
-    if candidate.href and candidate.href not in explored_routes:
+    if candidate.href and route_path(candidate.href) not in {route_path(route) for route in explored_routes}:
         s += 2.0
     # novelty：导航性文本
     if _has_any(candidate.text, NAVIGATION_KEYWORDS):

@@ -4,6 +4,7 @@ ExplorerContext 是"陌生人（裸 LLM）"能看到的唯一上下文包；
 InvestigatorContext 与它严格隔离（11 Investigation Agent 专用）。
 """
 from dataclasses import dataclass, field
+import json
 
 # 认知边界的字段词汇表：允许（白名单）与禁止（黑名单）。
 ALLOWED_FIELDS = ("screenshot", "visible_text", "action_history", "navigation", "product_brief")
@@ -40,7 +41,7 @@ class Observation:
 class ExplorerContext:
     """受限上下文包：只含白名单字段。
 
-    forbidden 是审计块：每个黑名单字段恒为 False（表示"未进入上下文"）。
+    forbidden 仅表示未传入对应字段，不证明可见文案语义没有污染。
     """
 
     screenshot: bytes | None = None
@@ -49,6 +50,12 @@ class ExplorerContext:
     navigation: list = field(default_factory=list)
     product_brief: str = ""
     forbidden: dict = field(default_factory=dict)
+    state_id: str = ""  # 浏览器状态身份，仅用于动作覆盖，不携带实现信息
+    visible_history: list[dict] = field(default_factory=list)
+    input_limits: dict = field(default_factory=dict)
+    run_id: str = ""
+    step_id: str = ""
+    action_id: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -58,8 +65,10 @@ class ExplorerContext:
                 "action_history": list(self.action_history),
                 "navigation": list(self.navigation),
                 "product_brief": self.product_brief,
+                "visible_history": list(self.visible_history),
             },
             "forbidden": dict(self.forbidden),
+            "input_limits": dict(self.input_limits),
         }
 
 
@@ -76,18 +85,23 @@ class InvestigatorContext:
     react_tree: str = ""  # 延后
     git_diff: str = ""    # 延后
     action_trace: str = ""
+    evidence_facts: list = field(default_factory=list)
+    input_status: dict = field(default_factory=dict)
 
     def to_text(self) -> str:
-        parts = []
-        for label, value in (
-            ("源码", self.source),
-            ("DOM", self.dom),
-            ("控制台", self.console),
-            ("网络", self.network),
-            ("API", self.api),
-            ("堆栈", self.stack_trace),
-            ("动作轨迹", self.action_trace),
-        ):
+        sections = [("保存事实", json.dumps(self.evidence_facts, ensure_ascii=False) if self.evidence_facts else "", 3000),
+                    ("动作轨迹", self.action_trace, 1200), ("控制台", self.console, 500),
+                    ("网络", self.network, 500), ("API", self.api, 200),
+                    ("堆栈", self.stack_trace, 500), ("DOM", self.dom, 1500), ("源码", self.source, 3000)]
+        truncated = [label for label, value, cap in sections if len(value) > cap]
+        self.input_status.update(prompt_truncated=bool(truncated), prompt_truncated_sections=truncated,
+                                 prompt_budget_chars=11500)
+        status = json.dumps(self.input_status, ensure_ascii=False)
+        if len(status) > 1000:
+            self.input_status["prompt_truncated"] = True
+        parts = ["[调查边界]\n根因和代码位置仅为假设；缺失、未执行与未知不能写成已发生。"
+                 "输入总限 11500 字符，分段有界；截断部分不作为已读取内容。\n" + status[:1000]]
+        for label, value, cap in sections:
             if value:
-                parts.append(f"[{label}]\n{value}")
+                parts.append(f"[{label}]\n{value[:cap]}" + ("\n[截断：其余内容未送入模型]" if len(value) > cap else ""))
         return "\n\n".join(parts)

@@ -1,6 +1,10 @@
 # 模块 12：Human Review + Report（人工审核 + 报告）
 
-> 最后一道闸：Evidence Inbox → Issue Builder → Report。人工确认的问题才进入报告。
+> Evidence Inbox → 开发者决定 → QA 与用户认知分析 / 确认问题报告。
+
+> 2026-10-01 T06 实现范围：两套审核 UI 支持四种决定和备注，analysis 保留全部五态发现；confirmed 保持只含确认项及 pending/by-design/skipped gate。确定性正文包含来源、事前依据、采集记录、模型解释、调查假设、决定与备注；终态快照、双缓存、下载及离线 HTML 已接线。见 [T06 实施记录](../engineering/t06-implementation.md)。
+
+> 当前 MVP 契约见 [MVP-02](../engineering/mvp-planbooks/02-findings-review-report.md)。旧 API 默认 confirmed，CLI 默认 analysis。下方长期规划中的 Issue Builder、PDF、外部工单和企业协作仍未交付；2026-09-13 二态开关拆解仅作历史归档。
 
 ---
 
@@ -38,20 +42,21 @@
 ## 4. 关键设计
 
 - **状态机**：`pending → confirmed | rejected | by-design | skipped`（可回退）。
-- **只收录 `confirmed`** 进入报告。
+- **confirmed 模式只收录确认项**；analysis 保留全部发现和决定。
 - 审核 UI 与报告模板分离：UI 只管状态，报告只读数据。
 
 ## 5. 接口契约
 
 ```python
 class HumanReview:
-    def inbox(self) -> list[Issue]: ...
-    def decide(self, issue_id, decision, note) -> None: ...
+    def decide(self, evidence_id, decision, note="") -> None: ...
 
 class ReportBuilder:
-    def build(self, confirmed: list[Issue]) -> Report: ...
-    def export(self, report: Report, target: "github|jira|linear") -> None: ...
+    def build(self, evidences, state: ReviewState, investigations=None, diagnostics=None,
+              *, mode="confirmed", scan_context=None) -> Report: ...
 ```
+
+外部 `export`、Issue Inbox 和跨审核人的版本控制为规划接口，尚未实现。
 
 ## 6. 关系
 
@@ -65,7 +70,7 @@ class ReportBuilder:
 
 ## 8. 验收标准
 
-- 审核状态正确流转，报告只含 `confirmed`。
+- 审核四种决定与备注正确保存；analysis 保留全部五态，confirmed 延续旧门槛和只含确认项。
 - 报告包含完整证据（截图/录像/console/network/root cause）。
 
 ## 9. 开放问题
@@ -96,4 +101,3 @@ alienqa/review/
 - **S3** `ReportBuilder.build`：gate（存在 by-design/skipped/pending → ValueError）→ 采信项 JSON → LLM 编排 HTML（含复现指导 + root cause）。
 - **S4** Flask 前端：`/`（列表 + switcher + 排序）、`/decide`（POST 二态）、`/report`（LLM HTML）。
 - **S5** 测试：状态机、排序、只含采信、gate 拦截、Flask test client。
-

@@ -99,6 +99,65 @@ def test_report_is_styled_html_document(reporter):
     assert "<h1>报告</h1>" in r.html
 
 
+def test_report_embeds_screenshots_and_original_record_when_llm_omits_them(reporter, tmp_path):
+    builder, fake = reporter
+    fake.texts.append("<h1>报告</h1>")
+    screenshot = tmp_path / "after.png"
+    screenshot.write_bytes(b"screenshot")
+    ev = Evidence(id="EV-001", expectation="save confirms", observation_summary="no confirmation",
+                  artifacts={"after": str(screenshot)}, replay={
+                      "url": "http://x/start", "final_url": "http://x/done", "browser": "chromium",
+                      "console": ["TypeError: save failed"], "network": ["POST http://x/save -> 500"],
+                      "storage_state": {"cookies": [{"name": "secret", "value": "private-token"}]},
+                      "action_sequence": [{"type": "type", "target": {"selector": "#name"}, "text": "Alice"}],
+                  })
+    state = ReviewState()
+    state.decide(ev.id, Decision.CONFIRMED)
+    report = builder.build([ev], state)
+    assert "data:image/png;base64," in report.html
+    for recorded in ("EV-001", "save confirms", "no confirmation", "http://x/start", "chromium", "Alice", "TypeError: save failed"):
+        assert recorded in report.html
+    assert "private-token" not in report.html
+
+
+def test_report_survives_reporter_failure(reporter):
+    builder, fake = reporter
+    fake.texts.append(RuntimeError("model unavailable"))
+    state = ReviewState()
+    state.decide("EV-001", Decision.CONFIRMED)
+    report = builder.build([_ev("EV-001", expectation="actual expectation")], state)
+    assert "actual expectation" in report.html
+    assert report.accepted_count == 1
+
+
+def test_report_marks_scan_diagnostics_as_incomplete(reporter):
+    builder, fake = reporter
+    fake.texts.append("<h1>报告</h1>")
+    report = builder.build([], ReviewState(), diagnostics=[{"stage": "judge", "error": "invalid response"}])
+    assert "扫描不完整" in report.html
+    assert "invalid response" in report.html
+
+
+def test_report_sanitizes_model_html_but_keeps_readable_report(reporter):
+    builder, fake = reporter
+    fake.texts.append('<h2 style="color:red">Summary</h2><script>fetch("/settings")</script>'
+                      '<style>body{display:none}</style><iframe>hidden iframe text</iframe>'
+                      '<object>hidden object text</object><svg><text>hidden svg text</text></svg>'
+                      '<math>hidden math text</math><img src=x onerror="alert(1)">'
+                      '<a href="javascript:alert(1)" onclick="attack()">Readable link</a>'
+                      '<table id="evil"><tr><td>Readable evidence</td></tr></table>')
+    state = ReviewState()
+    state.decide("EV-001", Decision.CONFIRMED)
+    html = builder.build([_ev("EV-001", expectation="Recorded expectation")], state).html
+    for unsafe in ('<script', '/settings', 'display:none', 'hidden iframe', 'hidden object',
+                   'hidden svg', 'hidden math', 'onerror=', 'javascript:', 'onclick=', 'id="evil"', 'style="color'):
+        assert unsafe not in html
+    assert "<h2>Summary</h2>" in html
+    assert "<a>Readable link</a>" in html
+    assert "<td>Readable evidence</td>" in html
+    assert "Recorded expectation" in html
+
+
 def test_report_blocks_on_by_design(reporter):
     builder, _ = reporter
     state = ReviewState()
@@ -139,7 +198,7 @@ def test_flask_index_renders_switcher(reporter):
     client = app.test_client()
     html = client.get("/").get_data(as_text=True)
     assert "EV-001" in html
-    assert "checkbox" in html
+    assert "<select" in html and "<textarea" in html
 
 
 def test_flask_report_persists_to_file(reporter, tmp_path):
@@ -155,6 +214,30 @@ def test_flask_report_persists_to_file(reporter, tmp_path):
     html = out.read_text(encoding="utf-8")
     assert html.startswith("<!doctype html>")
     assert "<h1>报告</h1>" in html
+
+
+def test_standalone_review_persists_and_report_includes_diagnostics(reporter, tmp_path):
+    import json
+
+    builder, fake = reporter
+    fake.texts.append("<h1>报告</h1>")
+    review = HumanReview()
+    review_path = tmp_path / "nested/review.json"
+    report_path = tmp_path / "nested/reports/report.html"
+    app = create_app(review, builder, report_path=str(report_path), review_path=str(review_path))
+    app.config["evidences"] = [_ev("EV-001", expectation="saved evidence")]
+    app.config["diagnostics"] = [{"stage": "judge", "error": "invalid response"}]
+    client = app.test_client()
+    assert client.post("/decide", json={"evidence_id": "unknown", "decision": "confirmed"}).status_code == 404
+    assert client.post("/decide", json={"evidence_id": "EV-001", "decision": "confirmed"}).status_code == 200
+    assert json.loads(review_path.read_text())["EV-001"]["decision"] == "confirmed"
+    response = client.get("/report")
+    assert response.status_code == 200
+    assert "扫描不完整" in response.get_data(as_text=True)
+    assert report_path.is_file()
+    assert client.post("/decide", json={"evidence_id": "EV-001", "decision": "rejected"}).status_code == 200
+    assert client.get("/report").status_code == 200
+    assert "saved evidence" not in report_path.read_text()
 
 
 def test_flask_report_includes_investigations(reporter):

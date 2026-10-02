@@ -31,6 +31,8 @@ class LLMConfig:
     default_provider: str = "openai"
     request_timeout: float = 120.0
     roles: dict = field(default_factory=dict)  # Role.value -> RoleConfig
+    codex_executable: str = "codex"
+    codex_reasoning_effort: str = "low"
 
     @classmethod
     def from_dict(cls, data: dict) -> "LLMConfig":
@@ -38,6 +40,8 @@ class LLMConfig:
         cfg = cls(
             default_provider=llm.get("default_provider", "openai"),
             request_timeout=float(llm.get("request_timeout", 120.0)),
+            codex_executable=str((llm.get("codex") or {}).get("executable", "codex")),
+            codex_reasoning_effort=str((llm.get("codex") or {}).get("reasoning_effort", "low")),
         )
         for key, val in (llm.get("roles") or {}).items():
             cfg.roles[key] = RoleConfig(
@@ -60,3 +64,4 @@ class LLMResponse:
     model: str = ""
     role: str = ""
     usage: dict = field(default_factory=dict)
+    call_id: str = ""

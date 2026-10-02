@@ -1,73 +1,52 @@
-<!doctype html>
-<html lang="zh">
-<head>
-  <meta charset="utf-8">
-  <title>AlienQA 证据审核</title>
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; margin: 2em; color: #1f2328; }
-    h1 { border-bottom: 2px solid #1f2328; padding-bottom: .3em; }
-    .toolbar a { margin-right: 1.2em; text-decoration: none; color: #0969da; }
-    .toolbar a.active { font-weight: 700; text-decoration: underline; }
-    table { border-collapse: collapse; width: 100%; margin-top: 1em; }
-    th, td { border: 1px solid #d0d7de; padding: .6em .8em; text-align: left; }
-    th { background: #f6f8fa; }
-    .switch { text-align: center; white-space: nowrap; }
-    /* 采信 / 不采信 切换开关 */
-    .toggle { position: relative; display: inline-block; width: 52px; height: 26px; vertical-align: middle; }
-    .toggle input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; cursor: pointer; inset: 0; background: #d1242f;
-              border-radius: 26px; transition: .2s; }
-    .slider::before { content: ""; position: absolute; height: 20px; width: 20px;
-                      left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; }
-    .toggle input:checked + .slider { background: #1a7f37; }
-    .toggle input:checked + .slider::before { transform: translateX(26px); }
-    .sw-label { display: inline-block; min-width: 3.5em; margin-left: .5em;
-                font-weight: 700; vertical-align: middle; }
-    .sw-label.on { color: #1a7f37; }
-    .sw-label.off { color: #d1242f; }
-  </style>
-</head>
-<body>
-  <h1>证据审核</h1>
-  <div class="toolbar">
-    <a href="/?sort=severity" {% if sort == 'severity' %}class="active"{% endif %}>按严重度排序</a>
-    <a href="/?sort=alphabetical" {% if sort == 'alphabetical' %}class="active"{% endif %}>按字母序排序</a>
-    <a href="/report">查看报告</a>
-  </div>
-  <table>
-    <tr><th>ID</th><th>严重度</th><th>预期</th><th>采信 / 不采信</th><th>状态</th></tr>
-    {% for r in rows %}
-    <tr>
-      <td><code>{{ r.id }}</code></td>
-      <td>{{ r.severity }}</td>
-      <td>{{ r.expectation }}</td>
-      <td class="switch">
-        <label class="toggle">
-          <input type="checkbox" data-id="{{ r.id }}" {% if r.accepted %}checked{% endif %}>
-          <span class="slider"></span>
-        </label>
-        <span class="sw-label {% if r.accepted %}on{% else %}off{% endif %}" data-label="{{ r.id }}">
-          {{ '采信' if r.accepted else '不采信' }}
-        </span>
-      </td>
-      <td>{{ r.decision }}</td>
-    </tr>
-    {% endfor %}
-  </table>
-  <script>
-    document.querySelectorAll('.toggle input').forEach(function (cb) {
-      cb.addEventListener('change', function () {
-        var label = document.querySelector('.sw-label[data-label="' + cb.dataset.id + '"]');
-        fetch('/decide', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({evidence_id: cb.dataset.id, decision: cb.checked ? 'confirmed' : 'rejected', note: ''})
-        }).then(function () {
-          label.textContent = cb.checked ? '采信' : '不采信';
-          label.className = 'sw-label ' + (cb.checked ? 'on' : 'off');
-        });
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>AlienQA 证据审核</title>
+<style>body{font-family:system-ui;margin:2rem;color:#1f2328}table{border-collapse:collapse;width:100%}td,th{border:1px solid #d0d7de;padding:.7rem;vertical-align:top}pre{white-space:pre-wrap;overflow-wrap:anywhere}img{max-width:100%}textarea{display:block;width:95%}label{display:block;margin:.5rem 0}.toolbar a{margin-right:1rem}</style></head><body>
+<h1>证据审核</h1><div class="toolbar">
+<a href="/?sort=severity">按严重度排序</a><a href="/?sort=alphabetical">按字母序排序</a>
+<a href="/report?mode=analysis">QA 与用户认知分析</a><a href="/report?mode=confirmed">确认问题报告</a>
+<a href="/report?mode=analysis&download=1">下载分析</a><a href="/report?mode=confirmed&download=1">下载确认问题报告</a></div>
+<table><tr><th>ID / 严重度</th><th>原始发现</th><th>决定与备注</th></tr>
+{% for r in rows %}<tr><td><code>{{ r.id }}</code><p>{{ r.severity }}</p></td><td><details><summary>原始发现与依据</summary>
+<p>来源：{{ r.finding_kind or '旧记录：未记录' }}</p>
+<h4>事前预期</h4><p>{{ r.expectation or ('技术候选：认知预期不适用' if r.finding_kind == 'technical_anomaly' else '未记录') }}</p>
+<h4>事前依据</h4>{% if r.basis %}<pre>{{ r.basis | tojson(indent=2) }}</pre>{% else %}<p>{{ '技术候选：认知依据不适用（null）' if r.finding_kind == 'technical_anomaly' else '旧记录：未记录依据' }}</p>{% endif %}
+<h4>{{ '技术候选摘要' if r.finding_kind == 'technical_anomaly' else '模型观察摘要' }}</h4><p>{{ r.observation or '未记录' }}</p>
+<h4>模型推理</h4><p>{{ r.reasoning or '未记录' }}</p>
+<h4>原始动作 / 来源 ID</h4><pre>{{ r.action | tojson(indent=2) }}</pre><pre>{{ r.source_record_ids | tojson }}</pre>
+<h4>采集技术信号</h4><pre>{{ r.technical | tojson(indent=2) }}</pre>
+<h4>动作前后截图</h4>{{ r.images | safe }}
+</details></td><td><div data-review="{{ r.id }}">
+  <label>开发者决定 <select name="decision" aria-label="开发者决定">
+    {% for value, label in decision_labels.items() %}<option value="{{ value }}" {% if r.decision == value %}selected{% endif %} {% if value == 'pending' %}disabled{% endif %}>{{ label }}</option>{% endfor %}
+  </select></label>
+  <label>备注 <textarea name="note" aria-label="备注" rows="3">{{ r.note }}</textarea></label>
+  <button type="button" class="save-decision">保存决定</button>
+  <span class="save-status" role="status">{{ decision_labels[r.decision] }}{% if r.note %} · 已保存备注{% endif %}</span>
+</div></td></tr>
+{% else %}<tr><td colspan="3">未记录发现</td></tr>{% endfor %}</table>
+<script>document.querySelectorAll('[data-review]').forEach(function (row) {
+  const button = row.querySelector('.save-decision');
+  const select = row.querySelector('select');
+  const note = row.querySelector('textarea');
+  const output = row.querySelector('.save-status');
+  button.onclick = async function () {
+    const payload = {evidence_id: row.dataset.review, decision: select.value, note: note.value};
+    button.disabled = select.disabled = note.disabled = true;
+    output.textContent = '正在保存…';
+    try {
+      const response = await fetch('/decide', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
       });
-    });
-  </script>
-</body>
-</html>
+      let result;
+      try { result = await response.json(); }
+      catch (_) { throw new Error('服务器返回了无法读取的响应（HTTP ' + response.status + '）'); }
+      if (!response.ok) { throw new Error(result.error || ('HTTP ' + response.status)); }
+      if (result.ok !== true || result.evidence_id !== payload.evidence_id ||
+          result.decision !== payload.decision || result.note !== payload.note) {
+        throw new Error('服务器未确认所提交的决定与备注');
+      }
+      output.textContent = '已保存：' + select.options[select.selectedIndex].text;
+    } catch (error) {
+      output.textContent = '保存失败：' + error.message + '。编辑内容已保留，可重试。';
+    } finally { button.disabled = select.disabled = note.disabled = false; }
+  };
+});</script></body></html>

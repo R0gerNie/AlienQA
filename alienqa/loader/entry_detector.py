@@ -82,11 +82,15 @@ class EntryDetector:
                 data = loads_object(raw)
                 entry = str(data.get("entry") or "").strip().replace("\\", "/")
                 if entry in candidates:
+                    self.roles.mark_parse("succeeded")
                     return entry
                 for c in candidates:
                     if c.endswith("/" + entry) or entry.endswith(c):
+                        self.roles.mark_parse("succeeded")
                         return c
-            except (ValueError, TypeError):
+                self.roles.mark_parse("failed", "entry 不在候选清单")
+            except (ValueError, TypeError) as exc:
+                self.roles.mark_parse("failed", exc)
                 continue
         return None
 

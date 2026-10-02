@@ -34,6 +34,8 @@ class RuntimeObservation:
     resource_failures: list = field(default_factory=list)  # 细分延后（planbook 开放问题）
     url: str = ""
     storage: dict = field(default_factory=dict)       # 延后（planbook 开放问题）
+    records: list[dict] = field(default_factory=list)
+    window: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -45,6 +47,11 @@ class Observation:
     action_desc: str = ""
     visual: VisualObservation = field(default_factory=VisualObservation)
     runtime: RuntimeObservation = field(default_factory=RuntimeObservation)
+    run_id: str = ""
+    step_id: str = ""
+    action_id: str = ""
+    before_text: str = ""
+    after_text: str = ""
 
     @property
     def technical(self) -> dict:
@@ -56,6 +63,8 @@ class Observation:
             "js_exceptions": list(self.runtime.js_exceptions),
             "resource_failures": list(self.runtime.resource_failures),
             "url": self.runtime.url,
+            "records": list(self.runtime.records),
+            "window": dict(self.runtime.window),
         }
 
 

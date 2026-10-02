@@ -40,6 +40,7 @@ class FrontendApp:
     name: str = ""
     manifest: str = ""   # repo 相对 posix 路径（package.json）
     base_dir: str = ""   # repo 相对 posix 路径（manifest 所在目录）
+    recognition: list = field(default_factory=list)
 
 
 @dataclass
@@ -61,3 +62,7 @@ class Project:
     frontend_apps: list = field(default_factory=list)
     visible_files: list = field(default_factory=list)
     selection_audit: SelectionAudit = field(default_factory=SelectionAudit)
+    app_dir: str = ""  # selected application directory; root remains repository-relative base
+    selected_manifest: str = ""
+    route_hints: list = field(default_factory=list)
+    loader_audit: dict = field(default_factory=dict)

@@ -35,7 +35,7 @@ flowchart TD
 
 ## 4. 关键设计
 
-- **状态签名（State Signature）**：`route + 关键 UI 状态（modal 是否打开、主要文本 hash）`。
+- **状态签名（State Signature）**：`route + 主要可见文本 + 可见表单值/勾选状态`。填入值未改变页面文字时仍需区分状态，不能因此屏蔽后续提交。
 - **相似状态合并**：签名相同视为同一状态，避免重复探索。
 - **持久化 State Graph**：供 Planner 查询"哪些状态已探索"。
 - 记录 `parent` 与触发 `action`，保证可回溯。
@@ -44,17 +44,21 @@ flowchart TD
 
 ```python
 class StateTracker:
-    def observe(self, route, snapshot, action=None) -> State: ...  # 新状态或合并到已有
-    def is_new(self, route, snapshot) -> bool: ...
+    def observe(self, route, snapshot, action=None, form_state=None) -> State: ...
+    def is_new(self, route, snapshot, form_state=None) -> bool: ...
     def explored(self, state: State) -> bool: ...
     def graph(self) -> StateGraph: ...
     def sequence(self) -> list[State]: ...
+    def trajectory(self) -> list[dict]: ...
+    def action_history(self) -> list[dict]: ...
 
 
 def normalize(text: str) -> str: ...      # 可插拔去噪规则
 
-def signature(route: str, text: str) -> str: ...  # 去噪后哈希
+def signature(route: str, text: str, form_state=None) -> str: ...  # 去噪后哈希
 ```
+
+2026-10-01 实现契约（C03）：`sequence` 保留唯一节点，`trajectory` 保留每次访问及触发动作，包括返回已有节点与不改变文字的动作；状态图记录返回边与自环。`capture(driver, action)` 会执行该动作后捕获状态；流水线已经执行动作时只调用 `observe`，避免重复执行。完整 replay 前缀来自 driver 的成功执行记录，不从唯一节点序列反推。
 
 ## 6. 关系
 
@@ -68,7 +72,7 @@ def signature(route: str, text: str) -> str: ...  # 去噪后哈希
 
 ## 8. 验收标准
 
-1. 相同 `route + 可见文本` → 相同 `signature`，`observe` 返回同一 State（去重）。
+1. 相同 `route + 可见文本 + 表单状态` → 相同 `signature`，`observe` 返回同一 State（去重）。
 2. 时间戳/随机 ID 变化 → `signature` 不变（去噪）。
 3. 可见内容变化（tab 切换 / modal 打开 / counter 自增）→ 产生新 State。
 4. 重复点击同一按钮 → 节点数不增长。
