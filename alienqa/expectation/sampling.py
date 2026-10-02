@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import re
 import unicodedata
 
-MERGE_VERSION = "sampling-merge-v2.1"
+MERGE_VERSION = "sampling-merge-v2.2"
 
 
 def normalize_layout(text):
@@ -24,13 +24,27 @@ class FeedbackClaim:
 
 
 def recognize_feedback(text, action_desc):
-    """Consume a complete supported sentence in the frozen click's scope."""
+    """Consume a complete supported sentence in the frozen action's scope."""
     kind, _, label = action_desc.partition(" ")
-    if kind != "click" or not label or label == "当前控件":
+    if not label or label == "当前控件":
         return None
     value = normalize_layout(text)
     label = re.escape(normalize_layout(label))
     target = rf'(?:[「“\"]?{label}[」”\"]?)'
+    # Finite, whole-sentence input conventions observed in the real baseline.
+    # Matching the current control is mandatory; extra clauses remain unknown.
+    if kind == "type":
+        pattern = rf"在{target}中输入(?:文本|文字)后,输入框应可见地显示所输入的内容\.?"
+        if re.fullmatch(pattern, value):
+            return FeedbackClaim("input_value", True, "input_value.visible_content")
+        return None
+    if kind == "blur":
+        pattern = rf"{target}\s*失去(?:输入)?焦点,不再显示(?:活动)?输入光标\.?"
+        if re.fullmatch(pattern, value):
+            return FeedbackClaim("input_focus", True, "input_focus.blur_cursor")
+        return None
+    if kind != "click":
+        return None
     prefix = rf"(?:(?:点击|点按|点|按下)(?:按钮)?{target}后|{target}后|本次操作后|操作后|点击后),?"
     subject = r"(?:界面|页面)?"
     expectation = r"(?:应当|应该|应|需要)"

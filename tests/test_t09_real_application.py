@@ -10,10 +10,29 @@ from alienqa.driver import Action, PlaywrightDriver, Target
 from alienqa.evidence import Evidence
 from alienqa.loader import Project
 from alienqa.local_run import serve_project
+from alienqa.planner import ActionPlanner, ExploreBudget, explore
 from alienqa.replay import ReplayEngine
+from alienqa.state import StateTracker
 from scripts.prepare_t09_todomvc import COMMIT, WORKSPACE, prepare
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def test_upstream_todomvc_autonomous_planner_creates_todo_in_three_actions():
+    app = prepare()
+    project = Project(root=str(app), framework="React", app_dir=str(app))
+    server, _ = serve_project(project)
+    driver = PlaywrightDriver(browser="chromium")
+    try:
+        driver.launch(project.base_url)
+        tracker = explore(driver, StateTracker(), ActionPlanner(), ExploreBudget(max_steps=3))
+        assert [a["type"] for a in tracker.action_history()] == ["type", "blur", "press"]
+        expect(driver._page.locator(".todo-list li")).to_have_count(1)
+        expect(driver._page.locator(".todo-list li label")).to_have_text("AlienQA test")
+    finally:
+        driver.close()
+        server.shutdown()
+        server.server_close()
 
 
 def test_upstream_todomvc_add_toggle_filter_and_independent_replay():

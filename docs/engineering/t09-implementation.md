@@ -11,7 +11,7 @@
 | Q03 | 契约、实际 Chromium、生产管线替身分层；提交身份、角色输入、attempt 对账、待审及 HTML 不混为效果证据 | 模型解释的合理性需要人审 |
 | Q04 | 扩展既有 `alienqa.evaluation`，支持 manifest 子集、真实应用版本/重置、共享调用上限、真实/替身来源；生成待审模板及保留分母的统计 | 新批真实调用预算、独立人审、有效发现与阈值 |
 | Q05 | 分别创建 wheel/sdist 隔离 venv、重新安装依赖、独立 Chromium 缓存、pip check、安装后完整 CLI/UI/回放/审核/离线报告 | 其他平台组合 |
-| Q06 | 默认 Ubuntu 3.11/3.13 回归、干净安装 job、显式框架 job；机器摘要严格区分证据层和失败/未运行 | 本轮远程 CI 执行结果 |
+| Q06 | 默认 Ubuntu 3.11/3.13 回归、干净安装 job、显式框架 job；机器摘要严格区分证据层和失败/未运行 | 默认回归与 3.11 安装远程通过；可选框架 CI 未执行 |
 | Q07 | 支持范围、已知限制和实验性 release gate 已落盘；没有自动确认或自动发布 | 实际开发者试用与效果门槛 |
 
 沿用现有 Evidence、Decision、committed checkpoint、报告和 T08 计量，没有建立第二套产品接口。评估 manifest/labels 在产品输入之外；运行器给模型使用不含异常名称的运行编号。人审模板与 checkpoint 绑定，审核不能嫁接到其他 run。
@@ -70,3 +70,9 @@ PLAYWRIGHT_BROWSERS_PATH=.venv/browsers .venv/bin/python -m pytest \
 最终发行代码另外在上述新依赖环境中从最终 wheel 和最终 sdist 构建的 wheel 各跑一次完整路径，均通过，证据为 `artifacts/evaluation/t09-installation/2bede4f4f2b54198bab350ce8849c2b6/final-validation/summary.json`。此复验复用刚独立安装的依赖/浏览器，不伪称第三、第四套新环境。
 
 机器摘要 `artifacts/evaluation/t09/validation-summary.json`：structure/browser_mechanism/installation = passed，real_model/user_trial = not_run，independent_review = blocked，release_ready = false。默认与可选框架 CI 的语法/分级核对通过；本机 gh 未登录，未取得远程结果，不能写为 Ubuntu 已验收。
+
+## 提交后的远程与真实基线增量
+
+T09 已以 `f8928fe` 提交推送。首个远程 CI 暴露浏览器缓存目录与图片测试遍历顺序问题，修复 `52281e0` 后，[CI 37002558875](https://github.com/R0gerNie/AlienQA/actions/runs/37002558875) 的 Ubuntu Python 3.11/3.13 默认回归、Python 3.11 wheel/sdist 两套干净安装路径均成功。可选框架 job 未运行。
+
+用户另授权 100 次 CLI 启动；真实控制、例外、历史和固定 TodoMVC 首轮用了 37 次，暴露输入/失焦合并及 Enter 探索缺口。后续修复、同配置复测、全部账目和人审状态见 [真实基线记录](t09-real-baseline-results.md)。上面的 0 次调用、远程未知及机器摘要是提交前工程阶段的历史记录，不能覆盖后续实际结果；人审、费用未知和试用 gate 继续开放。

@@ -56,7 +56,12 @@ class ActionPlanner:
                                                            "reason": "无法根据可见输入约束构造合法样本，未提交该字段"})
                     elif el.get("focused"):
                         actions.append(Action("blur", target))
-                    elif input_type == "search" or el.get("implicit_submit"):
+                    elif input_type == "search" or el.get("implicit_submit") or (
+                        tag == "input" and input_type == "text"
+                        and not el.get("form_key") and not el.get("contenteditable")
+                    ):
+                        # Formless single-line widgets may submit with Enter.
+                        # Probe observable behavior; this does not assume success.
                         actions.append(Action("press", target, "Enter"))
             elif tag == "select":
                 options = el.get("options") or []
