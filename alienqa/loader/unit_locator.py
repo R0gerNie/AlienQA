@@ -54,6 +54,12 @@ class UnitScope:
         href = (getattr(candidate, "href", "") or "").strip()
         if selector and selector in {_norm_selector(s) for s in self.selectors}:
             return True
+        # A portal belongs to its observable trigger chain, even outside the original DOM subtree.
+        for owner in getattr(candidate, "popup_owners", []):
+            from types import SimpleNamespace
+            if self.matches(SimpleNamespace(selector=owner.get("selector", ""),
+                                            text=owner.get("text", ""), href=owner.get("href", ""))):
+                return True
         haystack = f"{text} {href}".lower()
         for kw in self.keywords:
             if kw and kw.lower() in haystack:

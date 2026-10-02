@@ -47,8 +47,12 @@ def test_observed_paraphrases_merge_without_rewriting_the_requirement(action, pa
      "点击后应出现与保存下一项相符的可见结果，例如保存状态更新或进入下一项。"),
 ])
 def test_new_rules_preserve_objects_negation_limits_and_history_specificity(action, original, other):
-    accepted, unresolved = merge_samples([[requirement(original)], [requirement(other)]], action_desc=action)
-    assert not accepted and unresolved
+    diagnostic = {}
+    accepted, unresolved = merge_samples([[requirement(original)], [requirement(other)]],
+                                         action_desc=action, diagnostics=diagnostic)
+    assert len(accepted) == 2 and not unresolved
+    assert requirement(original) in accepted and requirement(other) in accepted
+    assert diagnostic["relationship_warnings"] and diagnostic["coverage"] == "complete"
 
 
 def elements(**changes):

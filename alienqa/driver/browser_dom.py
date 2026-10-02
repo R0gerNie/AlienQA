@@ -14,7 +14,8 @@ const nameOf = el => {
     return (referenced || el.getAttribute('aria-label') ||
         (el.labels && [...el.labels].map(l => l.innerText).join(' ')) ||
         (['INPUT','TEXTAREA','SELECT'].includes(el.tagName) ? el.placeholder ||
-            (['submit','button'].includes(el.type) ? el.value : '') : el.innerText || el.textContent) || '').trim().replace(/\s+/g, ' ');
+            (['submit','button'].includes(el.type) ? el.value : '') : el.innerText || el.textContent) ||
+        el.getAttribute('title') || '').trim().replace(/\s+/g, ' ');
 };
 const roleOf = el => el.getAttribute('role') || ({BUTTON:'button', A: el.hasAttribute('href') ? 'link' : '',
     SELECT:el.multiple?'listbox':'combobox', TEXTAREA:'textbox', INPUT:
@@ -43,12 +44,34 @@ const scopeOf = el => {
     const parent = el.closest('[role="dialog"],dialog,form,[role="listbox"],[role="menu"]');
     return parent && parent !== el ? selectorOf(parent) : '';
 };
+const surfaceQuery = 'dialog[open],[role="dialog"][aria-modal="true"],[role="menu"],[role="listbox"],[popover]:popover-open';
+const ownersOf = (surface, seen = new Set()) => {
+    if (!surface || seen.has(surface) || seen.size >= 6) return [];
+    seen.add(surface);
+    const labelled = (surface.getAttribute('aria-labelledby') || '').split(/\s+/);
+    const triggers = [...document.querySelectorAll('[aria-controls],[aria-haspopup],[popovertarget]')].filter(el =>
+        visible(el) && ((surface.id && (el.getAttribute('aria-controls') || '').split(/\s+/).includes(surface.id)) ||
+        (el.id && labelled.includes(el.id)) || (surface.id && el.getAttribute('popovertarget') === surface.id)));
+    return triggers.flatMap(el => [{selector:selectorOf(el),text:nameOf(el),href:el.getAttribute('href') || ''},
+        ...ownersOf(el.closest(surfaceQuery), seen)]).slice(0,12);
+};
+const identityOf = el => {
+    const rect = el.getBoundingClientRect();
+    const expanded = el.getAttribute('aria-expanded');
+    const field = ['INPUT','TEXTAREA','SELECT'].includes(el.tagName) || el.isContentEditable;
+    return {role:roleOf(el),label:nameOf(el),popup:el.getAttribute('aria-haspopup') || '',
+        expanded:expanded === null ? null : expanded === 'true',
+        focused:el.getRootNode().activeElement === el,
+        value_state:field ? ((el.value || (el.isContentEditable ? el.textContent : '')) ? 'nonempty' : 'empty') : null,
+        position:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}};
+};
 """
 
 METADATA = "el => {" + HELPERS + r"""
 const form = el.form || el.closest('form');
 return {
     selector: selectorOf(el), scope: scopeOf(el), name: nameOf(el), role: roleOf(el),
+    visible_identity: identityOf(el),
     label: (el.labels && [...el.labels].map(l=>l.innerText).join(' ')) || el.getAttribute('aria-label') || '',
     placeholder: el.placeholder || '', tag: el.tagName.toLowerCase(), text: nameOf(el),
     href: el.getAttribute('href') || '', input_type: el.type || 'text',
@@ -97,3 +120,15 @@ walk(document);
 return {frames:[...document.querySelectorAll('iframe,frame')].map(el=>({selector:selectorOf(el),status:'unvisited'})),
     shadow:{open_roots:openRoots,status:'unverified',note:'open shadow enumeration/state/replay is unverified; closed roots cannot be detected reliably'}};
 }"""
+
+SURFACES = "() => {" + HELPERS + r"""
+return [...document.querySelectorAll(surfaceQuery)].filter(visible).map(el => ({
+    selector:selectorOf(el),role:roleOf(el) || 'dialog', owners:ownersOf(el),
+    active:el.matches('dialog[open],[role="dialog"][aria-modal="true"],[popover]:popover-open') ||
+        ownersOf(el).some(owner=>document.querySelector(owner.selector)?.getAttribute('aria-expanded') === 'true'),
+    ancestors:[...document.querySelectorAll(surfaceQuery)].filter(other=>other!==el && other.contains(el)).map(selectorOf)
+}));
+}"""
+
+FOCUS = "el => ({target_present:el.isConnected, target_visible:el.getClientRects().length>0 && getComputedStyle(el).visibility!=='hidden', " \
+        "target_focused:el.getRootNode().activeElement===el, document_has_focus:document.hasFocus()})"

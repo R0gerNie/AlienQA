@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import re
 import unicodedata
 
-MERGE_VERSION = "sampling-merge-v2.2"
+MERGE_VERSION = "sampling-merge-v3"
 
 
 def normalize_layout(text):

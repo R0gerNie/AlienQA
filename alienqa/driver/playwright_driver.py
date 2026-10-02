@@ -3,7 +3,7 @@ from dataclasses import asdict
 from copy import deepcopy
 import time
 
-from .browser_dom import INTERACTIVE, METADATA, FORM_STATE, SETTLE_STATE, COVERAGE
+from .browser_dom import INTERACTIVE, METADATA, FORM_STATE, SETTLE_STATE, COVERAGE, SURFACES, FOCUS
 
 from .action import Action, Target
 from .base import BaseDriver
@@ -26,6 +26,7 @@ class PlaywrightDriver(BaseDriver):
         self.last_wait = {}
         self._attempts = []
         self._coverage = {}
+        self._popup_origins = {}
         self.on_execution = None
         self._pw = None
         self._browser = None
@@ -60,6 +61,7 @@ class PlaywrightDriver(BaseDriver):
                               "session_storage": "not_restored", "authentication": "unverified"}
         self._initial_storage_state = deepcopy(self.storage_state())
         self._action_sequence = []
+        self._popup_origins = {}
 
     def _launch_browser(self):
         """默认优先系统 Chrome（channel='chrome'）；不可用时回退 Playwright 自带 Chromium。"""
@@ -148,6 +150,9 @@ class PlaywrightDriver(BaseDriver):
                   "wait": {"status": "not_started"}, "url_before": self.url(), "url_after": self.url()}
         self.last_execution = result
         recorded = False
+        old_surfaces = self._surfaces()
+        result["focus_observation"] = {"before": {"status": "unavailable"}, "after": {"status": "unavailable"},
+            "observation_ref": f"scan.json#steps/{result['step_id']}/execution/focus_observation"}
         try:
             if self._remaining_ms() <= 0:
                 raise RuntimeError("action budget exhausted")
@@ -188,6 +193,7 @@ class PlaywrightDriver(BaseDriver):
                         action_ms = min(action_ms, 800)
                     if action.type == "click":
                         loc.click(trial=True, timeout=max(1, action_ms))
+                    result["focus_observation"]["before"] = self._focus(loc)
                     result["emitted"] = None  # invocation may fail after dispatch
                     self._perform(action, loc, max(1, self._remaining_ms()))
                     result["emitted"] = True
@@ -234,6 +240,16 @@ class PlaywrightDriver(BaseDriver):
                 except Exception:
                     result["value_accepted"] = None
                     result["status"] = "input_unverified"
+            if result["locator"].get("strategy") != "coordinates":
+                result["focus_observation"]["after"] = self._focus(loc)
+            # Only an emitted action with an unchanged URL can own newly visible surfaces.
+            if result["emitted"] is True and self.url() == result["url_before"]:
+                old_selectors = {s["selector"] for s in old_surfaces}
+                parent_owners = self._popup_origins.get((self.url(), action.target.scope), [])
+                origin = {"selector": action.target.selector or "", "text": action.target.text or action.target.name or ""}
+                for surface in self._surfaces():
+                    if surface["selector"] not in old_selectors:
+                        self._popup_origins[(self.url(), surface["selector"])] = [origin, *parent_owners][:12]
             return result
         except Exception as exc:
             result.update(status="failed", error=str(exc))
@@ -335,16 +351,31 @@ class PlaywrightDriver(BaseDriver):
         return self._page.content()
 
     def interactive_elements(self) -> list:
-        """Fresh visible candidates, scoped to an active modal; bounded enumeration."""
+        """Prioritize visible portal leaves; never click through them into the background."""
         root = self._page
-        modals = self._page.locator('dialog[open], [role="dialog"][aria-modal="true"]').filter(visible=True)
-        modal_count = modals.count()
-        if modal_count == 1:
-            root = modals
-        elif modal_count > 1:
+        surfaces = self._surfaces()
+        visible_surfaces = {s["selector"] for s in surfaces}
+        self._popup_origins = {key: value for key, value in self._popup_origins.items()
+                               if key[0] == self.url() and key[1] in visible_surfaces}
+        # role=menu/listbox also describes persistent navigation. Only explicit open state
+        # or an observed newly opened surface may exclude the rest of the page.
+        inactive_surfaces = sum(not s.get("active") and (self.url(), s["selector"]) not in self._popup_origins for s in surfaces)
+        surfaces = [s for s in surfaces if s.get("active") or (self.url(), s["selector"]) in self._popup_origins]
+        # A leaf can be nested in DOM or linked to its parent by an ARIA trigger.
+        leaves = [surface for surface in surfaces if not any(
+            surface["selector"] in child["ancestors"] or any(owner.get("selector") == surface["selector"] or
+                self._page.locator(surface["selector"]).locator(owner["selector"]).count() > 0
+                for owner in child["owners"] if owner.get("selector"))
+            for child in surfaces if child is not surface)]
+        if len(leaves) > 1:
             self._coverage = {"limit": _MAX_INTERACTIVE, "truncated": False,
-                              "ambiguous_modal": True, "enumerated": 0}
+                              "ambiguous_modal": True, "ambiguous_surface": True, "enumerated": 0}
             return []
+        surface = leaves[0] if leaves else None
+        owners = []
+        if surface:
+            root = self._page.locator(surface["selector"])
+            owners = [*surface["owners"], *self._popup_origins.get((self.url(), surface["selector"]), [])]
         locator = root.locator(INTERACTIVE).filter(visible=True)
         count = locator.count()
         items = []
@@ -354,13 +385,38 @@ class PlaywrightDriver(BaseDriver):
                 # Main-page structural paths do not cross shadow roots reliably.
                 if locator.nth(i).evaluate("el=>el.getRootNode() !== document"):
                     continue
+                item["popup_owners"] = owners
                 items.append(item)
             except Exception:
                 continue
+        if surface and (surface["role"] in {"menu", "listbox"} or count == 0):
+            # Escape is a normal keyboard probe. Its success is observed, never assumed.
+            focusable = root.locator('button:not([disabled]):not([aria-disabled="true"]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]').filter(visible=True)
+            dismiss_target = focusable.first if focusable.count() else root
+            dismiss = dismiss_target.evaluate(METADATA, timeout=500)
+            dismiss.update(dismiss_surface=True, popup_owners=owners)
+            items.append(dismiss)
         self._coverage = {"limit": _MAX_INTERACTIVE, "total_visible": count,
+                          "persistent_surfaces": inactive_surfaces,
                           "enumerated": len(items), "truncated": count > _MAX_INTERACTIVE,
-                          "modal_active": modal_count == 1, "detached_or_skipped": min(count, _MAX_INTERACTIVE)-len(items)}
+                          "modal_active": bool(surface), "active_surface": surface,
+                          "detached_or_skipped": max(0, min(count, _MAX_INTERACTIVE)-len(items))}
         return items
+
+    def _surfaces(self):
+        try:
+            surfaces = self._page.evaluate(SURFACES) if self._page else []
+            return surfaces if isinstance(surfaces, list) else []
+        except Exception:
+            return []
+
+    def _focus(self, locator):
+        try:
+            if locator.count() != 1:
+                return {"status": "target_absent_or_ambiguous"}
+            return {"status": "observed", **locator.evaluate(FOCUS, timeout=max(1, self._remaining_ms()))}
+        except Exception:
+            return {"status": "unavailable"}
 
     def interaction_coverage(self) -> dict:
         coverage = self._page.evaluate(COVERAGE) if self._page else {}

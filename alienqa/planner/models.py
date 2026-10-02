@@ -1,5 +1,5 @@
 """Action Planner 数据模型。"""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from alienqa.driver import Action
 
@@ -17,6 +17,7 @@ class Candidate:
     form_key: str = ""
     input_type: str = ""
     form_preparation: bool = False
+    popup_owners: list = field(default_factory=list)
 
 
 @dataclass

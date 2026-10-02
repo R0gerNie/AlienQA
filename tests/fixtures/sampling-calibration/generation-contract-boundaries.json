@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "policy": "Original real outputs; optional generation templates must not rewrite these rows. No new inference.",
+  "cases": [
+    {
+      "id": "baseline-real-application-run-1-ST-00001",
+      "source": "t09-real-20261002/baseline/real-application-run-1/scan.json",
+      "source_prompt_version": "general-user-v2",
+      "action": "type New Todo Input",
+      "samples": [
+        [
+          {
+            "text": "在「New Todo Input」中输入文本后，输入框应可见地显示所输入的内容。",
+            "expectation_basis": {
+              "type": "interaction_convention",
+              "reference": "文本输入框通常在键入时显示输入内容。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "在「New Todo Input」中输入文字后，输入框应可见地显示所输入的内容。",
+            "expectation_basis": {
+              "type": "interaction_convention",
+              "reference": "文本输入框的一般交互惯例：键入内容会显示在输入框内。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 1,
+      "expected_coverage": "complete",
+      "annotation": {
+        "source": "AI calibration",
+        "independent_review": "pending"
+      }
+    },
+    {
+      "id": "baseline-real-application-run-1-ST-00002",
+      "source": "t09-real-20261002/baseline/real-application-run-1/scan.json",
+      "source_prompt_version": "general-user-v2",
+      "action": "blur New Todo Input",
+      "samples": [
+        [
+          {
+            "text": "New Todo Input 失去焦点，不再显示输入光标。",
+            "expectation_basis": {
+              "type": "interaction_convention",
+              "reference": "输入框 blur 的通用交互惯例是失去焦点，输入光标不再显示。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "New Todo Input 失去输入焦点，不再显示活动输入光标。",
+            "expectation_basis": {
+              "type": "interaction_convention",
+              "reference": "输入框 blur 的通用交互惯例是失去焦点，停止显示活动输入光标。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 1,
+      "expected_coverage": "complete",
+      "annotation": {
+        "source": "AI calibration",
+        "independent_review": "pending"
+      }
+    },
+    {
+      "id": "retest-real-application-run-1-ST-00002",
+      "source": "t09-real-20261002/retest/real-application-run-1/scan.json",
+      "source_prompt_version": "general-user-v2",
+      "action": "blur New Todo Input",
+      "samples": [
+        [
+          {
+            "text": "New Todo Input 失去焦点，不再显示输入光标或聚焦样式（若有）。",
+            "expectation_basis": {
+              "type": "interaction_convention",
+              "reference": "输入框的 blur 操作表示移出焦点；失焦后通常不再显示输入光标或聚焦样式。"
+            }
+          }
+        ],
+        [
+          {
+            "text": "New Todo Input 失去输入焦点，不再显示其聚焦状态。",
+            "expectation_basis": {
+              "type": "interaction_convention",
+              "reference": "blur 的通用交互含义是使输入框失去焦点。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 0,
+      "expected_coverage": "none",
+      "annotation": {
+        "source": "AI calibration",
+        "independent_review": "pending"
+      }
+    },
+    {
+      "id": "retest-real-application-run-1-ST-00003",
+      "source": "t09-real-20261002/retest/real-application-run-1/scan.json",
+      "source_prompt_version": "general-user-v2",
+      "action": "press New Todo Input",
+      "samples": [
+        [],
+        []
+      ],
+      "expected_accepted": 0,
+      "expected_coverage": "none",
+      "annotation": {
+        "source": "AI calibration",
+        "independent_review": "pending"
+      }
+    },
+    {
+      "id": "retest-case-004-run-1-ST-00002",
+      "source": "t09-real-20261002/retest/case-004-run-1/scan.json",
+      "source_prompt_version": "general-user-v2",
+      "action": "click Save next item",
+      "samples": [
+        [
+          {
+            "text": "点击后应有可见反馈，表明下一项的保存结果；不应仅凭点击前已有的「Saved」判断本次保存成功。",
+            "expectation_basis": {
+              "type": "visible_copy",
+              "reference": "Save next item"
+            }
+          }
+        ],
+        [
+          {
+            "text": "本次操作后应有可见结果反馈",
+            "expectation_basis": {
+              "type": "interaction_convention",
+              "reference": "点击保存操作按钮后，通常应通过可见文案、按钮状态或页面变化反馈操作结果。"
+            }
+          }
+        ]
+      ],
+      "expected_accepted": 0,
+      "expected_coverage": "none",
+      "annotation": {
+        "source": "AI calibration",
+        "independent_review": "pending"
+      }
+    }
+  ]
+}

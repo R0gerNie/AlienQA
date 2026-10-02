@@ -94,11 +94,11 @@ def test_observed_basis_must_quote_saved_step_result():
     assert "ST-00001" in client.prompts[0]
 
 
-def test_disagreeing_samples_are_unresolved_instead_of_union():
+def test_disagreeing_samples_are_kept_instead_of_rejected():
     client = Client([payload(text="打开弹窗"), payload(text="直接跳转")])
     engine = ExpectationEngine(client, samples=2)
-    assert engine.expect(context(), PageInfo(), Action("click", Target(text="保存"))) == []
-    assert engine.last_generation["unresolved"]
+    assert len(engine.expect(context(), PageInfo(), Action("click", Target(text="保存")))) == 2
+    assert engine.last_generation["relationship_warnings"]
     assert len(engine.last_generation["samples"]) == 2
 
 

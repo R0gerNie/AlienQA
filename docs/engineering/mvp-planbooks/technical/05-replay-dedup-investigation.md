@@ -1,6 +1,6 @@
 # T05：回放条件、发现聚类与按问题调查
 
-版本：2026-10-02-tech-2。状态：E01～E07 的功能 MVP 已实现；验证与限制见 [T05 实施记录](../../t05-implementation.md)。真实模型、独立人审及真实应用 gate 仍开放。承接 [R02/R06](../02-findings-review-report.md)、[L04](../03-local-run-and-delivery.md) 与 [V01/V03](../04-validation-and-release.md)。
+版本：2026-10-02-tech-2。状态：E01～E07 的功能 MVP 已实现；验证与限制见 [T05 实施记录](../../t05-implementation.md)。真实模型/应用按版本验证；独立人审已撤销为验收项。承接 [R02/R06](../02-findings-review-report.md)、[L04](../03-local-run-and-delivery.md) 与 [V01/V03](../04-validation-and-release.md)。
 复用现有 ReplayEngine、Deduplicator、InvestigationAgent；调查是可选解释，不能成为获得分析报告的成功前提。
 
 ## 1. 实施前事实与改进落点（历史基线）

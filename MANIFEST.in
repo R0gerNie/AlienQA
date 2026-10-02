@@ -1,4 +1,5 @@
 include requirements-dev.lock
+include LICENSE
 recursive-include config *.yaml
 recursive-include docs *.md
 recursive-include tests *.py *.html *.json *.js *.jsx *.ts *.tsx *.vue *.yaml *.md
@@ -9,3 +10,6 @@ include scripts/verify_t07_installation.py
 include scripts/verify_t09_distribution.py
 include scripts/summarize_t09_validation.py
 include scripts/prepare_t09_todomvc.py
+include scripts/prepare_application_suite.py
+include scripts/run_application_suite.py
+include scripts/summarize_application_suite.py

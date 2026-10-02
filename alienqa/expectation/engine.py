@@ -5,8 +5,8 @@
 from ..context.models import ExplorerContext
 from ..llm import LLMClient, LlmRoles
 from ..driver.runtime import clean_message, sanitize_url
-from ..driver.action import describe_visible_action
-from .contracts import PROMPT_VERSION, validate_rows, validate_reference
+from ..driver.action import describe_visible_action, visible_target
+from .contracts import PROMPT_VERSION, action_parameters, validate_rows, validate_reference
 from copy import deepcopy
 import json
 from .models import Expectation, JudgmentError, JudgmentResult, Observation, PageInfo, parse_judgment
@@ -38,10 +38,14 @@ class ExpectationEngine:
             history.append({"step_id": step, "action": clean_message(row.get("action", ""))[:200],
                             "visible_result": clean_message(row.get("visible_result", ""))[:1000]})
         return {"prompt_version": PROMPT_VERSION, "run_id": getattr(ctx, "run_id", ""),
+                "input_version": "visible-action-v2",
                 "step_id": getattr(ctx, "step_id", ""), "action_id": getattr(ctx, "action_id", ""),
                 "route": route[:2000], "visible_text": visible[:4000],
                 "elements": [clean_message(str(e))[:100] for e in elements[:40]],
                 "visible_history": history, "action": describe_visible_action(action),
+                "action_target": visible_target(action),
+                "action_parameters": action_parameters(action),
+                "input_branch": getattr(action, "input_branch", "") if getattr(action, "input_branch", "") in {"valid", "invalid", "empty"} else "",
                 "input_limits": {**getattr(ctx, "input_limits", {}),
                                  "visible_text_truncated": len(visible) > 4000 or getattr(ctx, "input_limits", {}).get("visible_text_truncated", False),
                                  "elements_truncated": len(elements) > 40,
@@ -131,6 +135,7 @@ class ExpectationEngine:
                     obs.after_image,
                     visible={"before_text": getattr(obs, "before_text", "")[:4000],
                              "after_text": getattr(obs, "after_text", "")[:4000],
+                             "control_state": deepcopy(getattr(obs, "control_state", {})),
                              "visual_summary": getattr(getattr(obs, "visual", None), "summary", "")[:2000]},
                     repair=repair,
                 )
@@ -151,6 +156,9 @@ class ExpectationEngine:
                 references = [m.expectation_id if identified else m.expectation for m in result.mismatches]
                 if len(references) != len(set(references)):
                     raise ValueError("判定输出重复引用同一预期")
+                unchecked = set(result.unverifiable_expectation_ids)
+                if unchecked - {e.id for e in identified} or unchecked.intersection(references):
+                    raise ValueError("无法判断的预期 ID 未提供或同时出现在 mismatch")
                 self.roles.mark_parse("succeeded")
                 attempt["status"] = result.status
                 return result

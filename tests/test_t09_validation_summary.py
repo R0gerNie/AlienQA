@@ -44,3 +44,23 @@ def test_real_evaluation_execution_does_not_close_effect_gate(tmp_path,status,le
     main(['--evaluation',str(evaluation),'--output',str(out)])
     saved=json.loads(out.read_text())
     assert saved['levels']['real_model']==level and saved['release_ready'] is False
+
+
+def test_pending_optional_review_does_not_block_complete_engineering_summary(tmp_path):
+    from alienqa.acceptance import review_template
+    xml=tmp_path/'tests.xml'
+    xml.write_text('<testsuite><testcase name="ok"/></testsuite>')
+    installation=tmp_path/'installation.json'
+    installation.write_text(json.dumps({'status':'passed','environments':[
+        {'kind':kind,'system_site_packages':False,'pip_check':'passed'} for kind in ('wheel','sdist')]}))
+    rows=[{'id':'run','status':'completed','steps':[]}]
+    evaluation=tmp_path/'evaluation.json'
+    evaluation.write_text(json.dumps({'inference_kind':'real','invocations_used':2,'runs':rows}))
+    review=tmp_path/'feedback.json'
+    review.write_text(json.dumps(review_template(rows, [])))
+    output=tmp_path/'summary.json'
+    assert main(['--junit',str(xml),'--structural-junit',str(xml),'--installation',str(installation),
+                 '--evaluation',str(evaluation),'--review',str(review),'--output',str(output)])==0
+    saved=json.loads(output.read_text())
+    assert saved['release_ready'] and saved['levels']['independent_review']=='blocked'
+    assert saved['assessment']['required_for_acceptance'] is False

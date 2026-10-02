@@ -64,10 +64,10 @@ def main(argv=None):
             records.append({'id':'human-review','level':'independent_review','models':'human','platform':system,
                 'status':'passed' if extra['assessment']['independent_review_complete'] else 'blocked','result':args.review})
     result={**evidence_matrix(records),**extra}
-    result['release_status']='experimental; human/real-application/effect/remote-combination gates are separate'
+    result['release_status']='experimental; engineering execution and supported combinations gate release; human feedback is optional'
     atomic_write_json(args.output,result)
     print(args.output)
-    return 1 if any(r['status']=='failed' for r in records) else 0
+    return 1 if any(r['status']=='failed' and r['level'] in result['required_levels'] for r in records) else 0
 
 
 if __name__=='__main__':raise SystemExit(main())

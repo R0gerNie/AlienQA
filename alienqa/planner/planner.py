@@ -1,6 +1,7 @@
 """ActionPlanner：greedy 探索策略 + 端到端探索循环。"""
 import time
 import math
+import re
 
 from alienqa.context import ExplorationContext, ExplorerContext, Observation
 from alienqa.driver import Action, Target
@@ -19,11 +20,15 @@ class ActionPlanner:
         self._failures: dict = {}
         self.input_diagnostics: list = []
         self._uncertain: set = set()
+        self._input_branches: set = set()
+        self._route = ""
+        self._opened_popups: set = set()
 
     def extract_candidates(self, driver) -> list:
         """把 driver 枚举的可交互元素转成结构化 Candidate（过滤不可见/空元素）。"""
         candidates = []
         self.input_diagnostics = []
+        self._route = driver.url() if hasattr(driver, "url") else ""
         for el in driver.interactive_elements():
             if not el.get("visible", True) or el.get("disabled") or el.get("readonly"):
                 continue
@@ -36,9 +41,12 @@ class ActionPlanner:
             text = text or el.get("name") or el.get("label") or el.get("placeholder") or ""
             target = Target(selector=selector or None, text=text or None,
                             role=el.get("role") or None, name=el.get("name") or None,
-                            label=el.get("label") or None, scope=el.get("scope") or None)
+                            label=el.get("label") or None, scope=el.get("scope") or None,
+                            visible=el.get("visible_identity"))
             actions = []
-            if tag in {"input", "textarea"} or el.get("contenteditable"):
+            if el.get("dismiss_surface"):
+                actions.append(Action("press", target, "Escape"))
+            elif tag in {"input", "textarea"} or el.get("contenteditable"):
                 if input_type in {"hidden", "file", "reset", "image"}:
                     continue
                 if input_type in {"checkbox", "radio"}:
@@ -47,7 +55,19 @@ class ActionPlanner:
                 elif input_type in {"button", "submit"}:
                     actions.append(Action("click", target))
                 else:
-                    if not el.get("value"):
+                    if _json_input(el):
+                        value = _sample_value(el)
+                        if el.get("focused"):
+                            actions.append(Action("blur", target))
+                        if value is not None:
+                            for branch, sample in (("valid", value), ("invalid", "not valid JSON"), ("empty", "")):
+                                if branch != "empty" and el.get("maxlength") is not None and len(sample) > int(el["maxlength"]):
+                                    continue
+                                actions.append(Action("type", target, sample, input_branch=branch))
+                        else:
+                            self.input_diagnostics.append({"label": text, "status": "unverified",
+                                                           "reason": "可见约束不支持 JSON 样本，未绕过约束"})
+                    elif not el.get("value"):
                         value = _sample_value(el)
                         if value is not None:
                             actions.append(Action("type", target, value))
@@ -87,6 +107,7 @@ class ActionPlanner:
                     form_preparation=action.type in {"type", "select", "blur"} or (
                         input_type in {"checkbox", "radio"} and bool(el.get("required"))
                     ),
+                    popup_owners=el.get("popup_owners", []),
                 ))
         return candidates
 
@@ -99,7 +120,8 @@ class ActionPlanner:
         state_id = getattr(ctx, "state_id", "")
         available = [c for c in candidates if self._available(c.action, state_id)]
         pending_forms = {c.form_key for c in available
-                         if c.form_key and (c.form_preparation or c.action.type in {"type", "select"})}
+                         if c.form_key and c.action.input_branch not in {"invalid", "empty"}
+                         and (c.form_preparation or c.action.type in {"type", "select"})}
         for c in available:
             key = c.selector or c.text
             # Legacy callers may seed clicked directly; completed actions are state-local.
@@ -109,10 +131,14 @@ class ActionPlanner:
                 if c.input_type == "submit" or c.action.type == "press":
                     continue
             s = score(c, set(), self.explored_routes)
+            if c.action.type == "click" and (c.action.target.visible or {}).get("expanded") is False and self._control_key(c.action) in self._opened_popups:
+                s -= 10.0  # finish remaining work before revisiting a popup in a changed state
             if c.form_preparation or c.action.type in {"type", "select"}:
                 s += 20.0
+                if c.form_key and c.action.input_branch in {"invalid", "empty"}:
+                    s -= 30.0  # observe a valid submit before probing alternative inputs
             elif c.action.type == "press":
-                s += 2.0
+                s += -100.0 if c.action.text == "Escape" else 2.0
             elif c.action.type == "hover":
                 s -= 1.0
             if s > best_score:
@@ -130,7 +156,15 @@ class ActionPlanner:
 
     def _available(self, action: Action, state_id: str) -> bool:
         key = self._key(action, state_id)
+        if action.input_branch and self._input_key(action) in self._input_branches:
+            return False
         return key not in self._completed and key not in self._uncertain and self._failures.get(key, 0) < self.budget.max_failures_per_action
+
+    def _input_key(self, action):
+        return self._route, self._key(action, "")[2], action.input_branch
+
+    def _control_key(self, action):
+        return self._route, self._key(action, "")[2]
 
     def record_uncertain(self, action: Action, state_id: str) -> None:
         """An unknown emission cannot safely be retried as a known failed click."""
@@ -141,6 +175,10 @@ class ActionPlanner:
         key = self._key(action, state_id)
         if success:
             self._completed.add(key)
+            if action.input_branch:
+                self._input_branches.add(self._input_key(action))
+            if action.type == "click" and (action.target.visible or {}).get("popup"):
+                self._opened_popups.add(self._control_key(action))
             self._failures.pop(key, None)
         else:
             self._failures[key] = self._failures.get(key, 0) + 1
@@ -201,7 +239,8 @@ def _sample_value(element: dict) -> str | None:
         "date": "2026-01-01", "time": "12:00", "datetime-local": "2026-01-01T12:00",
         "month": "2026-01", "week": "2026-W01", "range": "50", "color": "#336699",
     }
-    value = values.get(kind, "AlienQA test")
+    semantic_json = _json_input(element)
+    value = '{"name":"AlienQA","count":2}' if semantic_json else values.get(kind, "AlienQA test")
     if kind in {"number", "range"}:
         try:
             low = float(element.get("min") or (0 if kind == "range" else "-inf"))
@@ -231,6 +270,8 @@ def _sample_value(element: dict) -> str | None:
             return None
     maxlength = element.get("maxlength")
     if maxlength is not None and int(maxlength) > 0:
+        if semantic_json and len(value) > int(maxlength):
+            return None
         if len(value) > int(maxlength) and kind in {"email", "url"}:
             value = "a@b.co" if kind == "email" else "https://a.co"
             if len(value) > int(maxlength):
@@ -243,3 +284,11 @@ def _sample_value(element: dict) -> str | None:
     if element.get("pattern"):
         return None
     return value
+
+
+def _json_input(element):
+    if element.get("input_type", "text") not in {"text", "search", "textarea"}:
+        return False
+    # Only user-visible labels/placeholder, never field IDs or framework implementation.
+    label = " ".join(str(element.get(key) or "") for key in ("text", "name", "label", "placeholder"))
+    return bool(re.search(r"\bjson\b", label, re.I))

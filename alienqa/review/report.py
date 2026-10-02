@@ -199,6 +199,10 @@ def _render_recorded_evidence(displayed, inv_map, total, diagnostics, state, mod
             parts.append("<p>检查覆盖：" + escape(coverage) + "；局部判定：" + escape(local) + "</p>")
             if view["coverage"] == "partial":
                 parts.append('<p class="warning">部分要求仍未决，局部判定不代表完整通过。</p>')
+            if view["unverifiable_expectation_ids"]:
+                parts.append("<p>另有无法判断的要求；已产生的落差仍保留。</p>" + _pre(view["unverifiable_expectation_ids"]))
+            if view["relationship_warnings"]:
+                parts.append("<p>采样关系备注：全部候选仍交付检查。</p>" + _pre(view["relationship_warnings"]))
             if view["sampling"]:
                 parts.append("<p>采样完成情况</p>" + _pre(view["sampling"]))
             else:

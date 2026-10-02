@@ -3,6 +3,8 @@
 > 状态：T04/T03/T06 已交付本文发现到分析报告的工程闭环，并完成受控网页的真实浏览器与离线验收；真实模型效果和发行安装仍待验收。详见 [T06 实施记录](../t06-implementation.md)。目标用户是独立开发者；目标是 QA 与发现违反一般用户认知的行为，不设计岗位画像或企业协作。
 > 本计划调整旧模块 12 的产品入口，复用既有 Evidence、ReviewState、报告和本地运行记录，不另建发现数据库。
 
+用户的决定与备注是选择权，独立人审不属于验收。analysis 无需先审阅或认可；confirmed 的严格筛选只是用户主动选择的报告模式，不是发布或发现准入门槛。模型主观落差均保留，不用内部答案筛掉“误报”。
+
 ## 技术实施拆解
 
 R01/R02 的原始信号、独立技术候选、双来源 Evidence 和存储见 [T04](technical/04-runtime-pipeline-persistence.md)；认知 basis 的供应见 [T03](technical/03-context-expectation-judgment.md)。

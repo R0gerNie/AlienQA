@@ -1,0 +1,7 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Portal editor</title>
+<section id="editor"><textarea id="memo" placeholder="Any thoughts..."></textarea>
+<button id="tools" aria-controls="menu" aria-haspopup="menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded','true');document.querySelector('#menu').hidden=false;document.body.style.pointerEvents='none'">Tools</button>
+<button id="save" onclick="document.querySelector('output').textContent='Saved';document.querySelector('#memo').value=''">Save</button></section>
+<button id="outside">Outside</button><output></output>
+<div id="menu" role="menu" hidden style="pointer-events:auto" onkeydown="if(event.key==='Escape'){this.hidden=true;document.body.style.pointerEvents='auto';document.querySelector('#tools').setAttribute('aria-expanded','false')}">
+<button role="menuitem" id="item" onclick="this.textContent='Selected'">Choose</button></div></html>

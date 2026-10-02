@@ -59,15 +59,18 @@ setTimeout(() => location.reload(), 3000);
 <details><summary>动作定位、观察窗口与交互覆盖</summary><pre>{{ {'execution': step.get('execution', {}), 'coverage': step.get('interaction_coverage', {}), 'trajectory': step.get('trajectory', {})} | tojson(indent=2) }}</pre></details>
 {% endif %}
 {% if generation.get('coverage') == 'partial' %}<p class="badge partial">部分要求仍未决，局部判定不代表完整通过。</p>{% endif %}
+{% if step.get('judgment_result', {}).get('unverifiable_expectation_ids') %}<p>另有无法判断的要求：{{ step.judgment_result.unverifiable_expectation_ids | join('、') }}；已产生的落差仍保留。</p>{% endif %}
 {% set sampling = generation.get('sampling', {}) %}
 {% if sampling %}<p>采样：{{ sampling.get('returned', 0) }} / {{ sampling.requested }} 已返回；{{ sampling.get('validated', 0) }} / {{ sampling.requested }} 已验证；完成：{{ '是' if sampling.get('complete') else '否' }}</p>
 {% else %}<p>旧记录：采样完成情况未记录。</p>{% endif %}
 <details><summary>事前采样要求与未决原因</summary>
+{% for item in generation.get('empty_samples', []) %}<p>采样 {{ item.sample_index }} 未提出预期：{{ item.reason or '原因未记录' }}（{{ item.code }}）</p>{% endfor %}
 {% for group in generation.get('groups', []) %}
 <p>{{ group.text }} · {{ '已接纳' if group.decision == 'accepted' else '未决' if group.decision == 'unresolved' else '未交付' }} · {{ group.reason }}</p>
 <ul>{% for member in group.members %}<li>采样 {{ member.sample_index }} / 条目 {{ member.row_index }}：{{ member.text }}（{{ member.expectation_basis.type }}：{{ member.expectation_basis.reference }}）</li>{% endfor %}</ul>
 {% endfor %}
 {% for item in generation.get('unresolved', []) %}<p>未决：{{ item.reason }}</p><ul>{% for text in item.texts %}<li>{{ text }}</li>{% endfor %}</ul>{% endfor %}
+{% for item in generation.get('relationship_warnings', []) %}<p>采样关系备注：{{ item.reason }}</p><ul>{% for text in item.texts %}<li>{{ text }}</li>{% endfor %}</ul>{% endfor %}
 {% if generation.error %}<p>{{ generation.error }}</p>{% endif %}
 <pre>{{ {'merge_version': generation.get('merge_version', '未记录'), 'error_code': generation.get('error_code', '')} | tojson(indent=2) }}</pre></details>
 </div>

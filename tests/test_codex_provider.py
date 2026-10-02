@@ -173,4 +173,4 @@ def test_judge_advertised_example_matches_parser_and_versions_new_prompt(rig):
     assert result.status == "mismatch" and result.mismatches[0].expectation_id
     assert isinstance(example['mismatches'][0]['expectation'], str)
     assert "不得把 ID 拼进 expectation" in prompt
-    assert rig.sink.read_calls()[0]["prompt_version"] == "judgment-v2"
+    assert rig.sink.read_calls()[0]["prompt_version"] == "judgment-v3"

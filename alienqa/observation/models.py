@@ -52,6 +52,7 @@ class Observation:
     action_id: str = ""
     before_text: str = ""
     after_text: str = ""
+    control_state: dict = field(default_factory=dict)
 
     @property
     def technical(self) -> dict:

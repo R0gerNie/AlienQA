@@ -7,7 +7,9 @@ import argparse
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
+import json
 import math
+import re
 import sys
 
 from .acceptance import load_manifest, product_input, review_template, serve_cases
@@ -36,6 +38,37 @@ class InvocationBudget:
         if self.used >= self.maximum:
             raise RequestLimitExceeded("真实模型调用预算已用尽，未启动新的请求")
         self.used += 1
+
+
+def load_application_manifest(filename):
+    """Load evaluator-only setup metadata; models receive URLs and visible scope only."""
+    source = Path(filename).resolve()
+    data = json.loads(source.read_text())
+    if not isinstance(data, dict) or data.get("schema_version") != 1 or not data.get("version"):
+        raise ValueError("Application manifest requires schema_version=1 and version")
+    cases = data.get("cases")
+    if not isinstance(cases, list) or not cases:
+        raise ValueError("Application manifest requires nonempty cases")
+    seen = set()
+    for case in cases:
+        if not isinstance(case, dict):
+            raise ValueError("Application case must be an object")
+        identifier = case.get("id", "")
+        if not isinstance(identifier, str) or not re.fullmatch(r"[a-zA-Z0-9_-]+", identifier) or identifier in seen:
+            raise ValueError("Application case ID must be unique and path-safe")
+        seen.add(identifier)
+        if any(not isinstance(case.get(key), str) or not case[key].strip() for key in ("entry_url", "version", "reset")):
+            raise ValueError("Application case requires URL, exact version and reset recipe")
+        if not valid_url(case["entry_url"]) or case.get("mode") not in {"autonomous", "directed"}:
+            raise ValueError("Application URL/mode invalid")
+        if type(case.get("max_actions")) is not int or case["max_actions"] < 1:
+            raise ValueError("Application action budget must be a positive integer")
+        session = case.get("storage_state", "")
+        if session:
+            session = str((source.parent / session).resolve())
+            validate_session(session)
+        case["storage_state"] = session
+    return data
 
 
 def control_cases(repeats):
@@ -97,7 +130,8 @@ def summarize_records(rows):
             "real_application_attempted_runs": sum(row.get('case_type')=='real_application' and row['status']!='not_started' for row in rows),
             "real_application_completed_runs": sum(row.get('case_type')=='real_application' and row['status']=='completed' for row in rows),
             "real_application_evaluated": any(row.get('case_type')=='real_application' and row.get('steps') for row in rows),
-            "notice": "控制样例结果不等于准确率；未决、失败和未执行均保留。真实应用和人工复核另行验收。"}
+            "exploration_modes": dict(Counter(row.get("mode", "unrecorded") for row in rows)),
+            "notice": "未处理、失败和未执行均保留；自主与定向探索分列，不推导准确率，不要求人审放行。"}
 
 
 def main(argv=None):
@@ -107,6 +141,7 @@ def main(argv=None):
                         help="Declare provider provenance; substitute runs never certify model quality")
     parser.add_argument("--fixtures", default="tests/fixtures")
     parser.add_argument("--manifest", help="Versioned paired-case manifest; evaluator labels stay private")
+    parser.add_argument("--applications-manifest", help="Pinned real applications with separate autonomous/directed cases; shared call budget")
     parser.add_argument("--cases", nargs="+", help="Explicit manifest case IDs")
     parser.add_argument("--real-app", help="Already running small real application URL")
     parser.add_argument("--app-version", help="Exact upstream version/commit for real application")
@@ -125,27 +160,31 @@ def main(argv=None):
         parser.error("预算、重复、采样及时间必须大于零")
     if args.real_app and (not valid_url(args.real_app) or not args.app_version or not args.app_reset):
         parser.error("Real app requires HTTP URL, exact version and explicit reset recipe")
-    if args.cases and not args.manifest:
-        parser.error("--cases requires --manifest")
+    if args.applications_manifest and (args.manifest or args.real_app):
+        parser.error("Application suite cannot mix control/legacy real-app sources")
+    if args.cases and not (args.manifest or args.applications_manifest):
+        parser.error("--cases requires a manifest")
     try:
         validate_session(args.storage_state)
         paired = load_manifest(args.manifest) if args.manifest else None
+        applications = load_application_manifest(args.applications_manifest) if args.applications_manifest else None
     except (ValueError, OSError) as exc:
         parser.error(str(exc))
     directory = Path(args.output)
     if directory.exists() and any(directory.iterdir()):
         parser.error("验收目录已有产物，请使用新的目录")
     fixtures = Path(args.fixtures).resolve()
-    if not paired and not (fixtures / "cognition-app" / "index.html").is_file():
+    if not paired and not applications and not (fixtures / "cognition-app" / "index.html").is_file():
         parser.error("缺少 cognition-app 控制样例；请指定 --fixtures")
     config = load_config(args.config)
     directory.mkdir(parents=True, exist_ok=True)
-    if paired:
-        selected = [c for c in paired['cases'] if not args.cases or c['id'] in args.cases]
+    if paired or applications:
+        source = paired or applications
+        selected = [c for c in source['cases'] if not args.cases or c['id'] in args.cases]
         if args.cases and set(args.cases) != {c['id'] for c in selected}:
             parser.error("Unknown manifest case ID")
         cases = [{**case, 'case_id': case['id'], 'id': f'case-{index:03d}-run-{repeat}',
-                  'repeat': repeat, 'case_type': 'paired_control'}
+                  'repeat': repeat, 'case_type': 'real_application' if applications else 'paired_control'}
                  for repeat in range(1, args.repeats+1) for index, case in enumerate(selected,1)]
     else:
         cases = [case for case in control_cases(args.repeats) if case["variant"] in args.variants]
@@ -157,11 +196,11 @@ def main(argv=None):
     budget = InvocationBudget(args.max_calls)
     manifest = {"schema_version": 2, "prompt_version": PROMPT_VERSION, "merge_version": MERGE_VERSION,
                 "inference_kind": args.inference_kind,
-                "judge_prompt_version": "judgment-v2", "config": public_value(asdict(config)),
-                "fixture": paired["version"] if paired else "cognition-app", "samples": args.samples, "max_calls": args.max_calls,
+                "judge_prompt_version": "judgment-v3", "config": public_value(asdict(config)),
+                "fixture": (paired or applications)["version"] if (paired or applications) else "cognition-app", "samples": args.samples, "max_calls": args.max_calls,
                 "max_seconds_per_run": args.max_seconds, "cases": cases,
                 "reference_policy": "references stay here and are never passed to pipeline/model prompts"}
-    manifest["manifest_source"] = str(Path(args.manifest).resolve()) if args.manifest else None
+    manifest["manifest_source"] = str(Path(args.manifest or args.applications_manifest).resolve()) if (args.manifest or args.applications_manifest) else None
     atomic_write_json(directory / "manifest.json", manifest)
     records = [{**case, "status": "not_started", "steps": [], "assessment": "pending"} for case in cases]
 
@@ -177,7 +216,7 @@ def main(argv=None):
         if paired:
             public = Path(args.manifest).resolve().parent / paired.get('public_directory', 'public')
             server, base_url = serve_cases(public)
-        else:
+        elif not applications:
             server, base_url = _serve(str(fixtures))
         for row in records:
             if budget.used >= budget.maximum:
@@ -198,7 +237,7 @@ def main(argv=None):
                                        run_dir=run_dir, run_id=row["id"], unit=row.get("unit", ""))
             pipeline.client.before_request = budget.reserve
             try:
-                result = pipeline.collect(ProjectLoader().load_browser(url, storage_state=args.storage_state))
+                result = pipeline.collect(ProjectLoader().load_browser(url, storage_state=row.get("storage_state", args.storage_state)))
                 if load_snapshot(run_dir) is None:
                     result.save(run_dir)
                 saved = load_snapshot(run_dir)
@@ -252,7 +291,7 @@ def main(argv=None):
         if server:
             server.shutdown()
             server.server_close()
-    print(f"[evaluation] 结果 → {directory / 'evaluation.json'}；N06 真实应用与复核 gate 保持开放", flush=True)
+    print(f"[evaluation] 结果 → {directory / 'evaluation.json'}；覆盖与候选保留按版本记录，不要求人审放行", flush=True)
     return 0 if all(row["status"] == "completed" for row in records) else 2
 
 

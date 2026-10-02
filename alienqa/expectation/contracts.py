@@ -5,9 +5,51 @@ from copy import deepcopy
 from ..evidence.models import valid_basis
 from .sampling import MERGE_VERSION, normalize_layout, recognize_feedback, relation
 
-PROMPT_VERSION = "general-user-v2"
+PROMPT_VERSION = "general-user-v4"
 MAX_EXPECTATIONS = 5
 MAX_TEXT = 500
+
+
+def action_parameters(action):
+    """Only non-text keyboard commands, never typed/selected values or locators."""
+    kind = action.get("type") if isinstance(action, dict) else getattr(action, "type", None)
+    if kind != "press":
+        return {}
+    key = action.get("text") if isinstance(action, dict) else getattr(action, "text", None)
+    allowed = {"Enter", "Tab", "Escape", "Space", "Backspace", "Delete", "ArrowUp", "ArrowDown",
+               "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"}
+    return {"key": key if isinstance(key, str) and key in allowed else None}
+
+
+def expression_templates(action_desc):
+    """Optional wording, not inferred requirements or a semantic merge override."""
+    kind, _, label = action_desc.partition(" ")
+    if kind == "click":
+        return [{"id": "operation.visible_result", "text": "本次操作后应有可见结果反馈"}]
+    if not label or label == "当前控件" or len(label) > 200:
+        return []
+    if kind == "type":
+        return [{"id": "input.visible_content", "text": f"在「{label}」中输入文字后，输入框应可见地显示所输入的内容。"}]
+    if kind == "blur":
+        return [{"id": "input.blur_cursor", "text": f"{label} 失去输入焦点，不再显示活动输入光标。"}]
+    return []
+
+
+def validate_generation_response(response):
+    """Keep legacy envelopes; new abstentions are bounded and noncontradictory."""
+    rows = validate_rows(response.get("expectations"))
+    abstention = response.get("abstention")
+    if abstention is None:
+        return rows, None if rows else {"code": "unrecorded", "reason": ""}
+    if rows:
+        raise ValueError("非空 expectations 不能同时包含 abstention")
+    if (not isinstance(abstention, dict) or set(abstention) != {"code", "reason"}
+            or not isinstance(abstention.get("code"), str)
+            or abstention.get("code") not in {"insufficient_visible_basis", "no_observable_expectation"}
+            or not isinstance(abstention.get("reason"), str)
+            or not abstention["reason"].strip() or len(abstention["reason"]) > MAX_TEXT):
+        raise ValueError("abstention 必须包含有效 code 和 1～500 字符 reason")
+    return rows, {"code": abstention["code"], "reason": abstention["reason"].strip()}
 
 
 def validate_rows(rows):
@@ -41,9 +83,19 @@ def validate_reference(row, frozen):
 
 
 def merge_samples(samples, *, action_desc="", diagnostics=None):
-    """Action-scoped relationships with original rows and explicit provenance."""
+    """Keep the union; only proven equivalence reduces checks, never disagreement."""
+    return _merge_samples(samples, action_desc=action_desc, diagnostics=diagnostics)
+
+
+def _merge_samples_v2(samples, *, action_desc="", diagnostics=None):
+    """Frozen conservative algorithm, exclusively for historical offline replay."""
+    return _merge_samples(samples, action_desc=action_desc, diagnostics=diagnostics, historical=True)
+
+
+def _merge_samples(samples, *, action_desc="", diagnostics=None, historical=False):
     diagnostic = diagnostics if diagnostics is not None else {}
-    diagnostic.update(merge_version=MERGE_VERSION, groups=[], unresolved=[], coverage="none")
+    diagnostic.update(merge_version="sampling-merge-v2.2" if historical else MERGE_VERSION,
+                      groups=[], unresolved=[], relationship_warnings=[], coverage="none")
     groups = []
     for sample_index, rows in enumerate(samples):
         if len(rows) > MAX_EXPECTATIONS:
@@ -71,7 +123,7 @@ def merge_samples(samples, *, action_desc="", diagnostics=None):
                            "rule_id": group["claim"].rule_id if group["claim"] else "literal.layout",
                            "decision": "accepted", "reason": "原文一致或有限规则证明等价；支持数不表示正确率"}
     diagnostic["groups"] = [group["record"] for group in groups]
-    if len(groups) > MAX_EXPECTATIONS:
+    if historical and len(groups) > MAX_EXPECTATIONS:
         diagnostic["error_code"] = "merged_limit_exceeded"
         for group in diagnostic["groups"]:
             group.update(decision="not_checked", reason="合并候选超过上限，未交付预期集合")
@@ -83,7 +135,7 @@ def merge_samples(samples, *, action_desc="", diagnostics=None):
             if decision == "compatible":
                 continue
             affected = [left, right]
-            if decision == "relation_unknown" and len(samples) > 1:
+            if historical and decision == "relation_unknown" and len(samples) > 1:
                 stable = [g for g in affected if g["record"]["support_count"] == len(samples)]
                 # A shared requirement survives an unknown *additional* claim,
                 # but two stable unknown claims are not evidence of compatibility.
@@ -93,18 +145,23 @@ def merge_samples(samples, *, action_desc="", diagnostics=None):
                 other = right if group is left else left
                 group["reasons"].append({"reason_code": decision, "related_text": other["record"]["text"]})
 
-    accepted, unresolved = [], []
+    accepted, unresolved, warnings = [], [], []
     for group in groups:
         record = group["record"]
         if group["reasons"]:
             reason = "conflict" if any(r["reason_code"] == "conflict" for r in group["reasons"]) else "relation_unknown"
-            explanation = "相同动作的反馈要求互相排斥，需复核" if reason == "conflict" else "要求之间的关系超出有限规则，需复核"
-            record.update(decision="unresolved", reason=explanation, relations=group["reasons"])
-            unresolved.append({"basis": deepcopy(record["expectation_basis"]),
+            explanation = "采样要求互相排斥，均保留检查" if reason == "conflict" else "要求关系未知，均保留检查"
+            if historical:
+                explanation = "相同动作的反馈要求互相排斥，需复核" if reason == "conflict" else "要求之间的关系超出有限规则，需复核"
+            record.update(decision="unresolved" if historical else "accepted", reason=explanation,
+                          relations=group["reasons"])
+            warning = {"basis": deepcopy(record["expectation_basis"]),
                                "texts": sorted({m["text"] for m in record["members"]}),
                                "members": deepcopy(record["members"]), "reason_code": reason,
-                               "reason": explanation, "relations": deepcopy(group["reasons"])})
-        else:
+                               "reason": explanation, "relations": deepcopy(group["reasons"])}
+            (unresolved if historical else warnings).append(warning)
+        if not group["reasons"] or not historical:
             accepted.append({"text": record["text"], "expectation_basis": deepcopy(record["expectation_basis"])})
-    diagnostic.update(unresolved=unresolved, coverage="partial" if accepted and unresolved else "complete" if accepted else "none")
+    diagnostic.update(unresolved=unresolved, relationship_warnings=warnings,
+                      coverage="partial" if accepted and unresolved else "complete" if accepted else "none")
     return accepted, unresolved

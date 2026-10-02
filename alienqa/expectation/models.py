@@ -73,6 +73,7 @@ class JudgmentResult:
     status: Literal["passed", "mismatch", "failed", "inconclusive"]
     mismatches: list[ExpectationMismatch] = field(default_factory=list)
     error: str = ""
+    unverifiable_expectation_ids: list[str] = field(default_factory=list)
 
 
 class JudgmentError(ValueError):
@@ -102,18 +103,28 @@ def parse_judgment(text: str) -> JudgmentResult:
 
     inferred_status = "mismatch" if mismatches else "passed"
     status = data.get("status", inferred_status)
+    unverifiable = data.get("unverifiable_expectation_ids", [])
+    if (not isinstance(unverifiable, list) or any(not isinstance(i, str) or not i.strip() for i in unverifiable)
+            or len(set(unverifiable)) != len(unverifiable)):
+        raise ValueError("unverifiable_expectation_ids 必须是无重复的预期 ID 数组")
     if status not in ("passed", "mismatch", "failed", "inconclusive"):
         raise ValueError("判定 status 无效")
     if status in ("passed", "mismatch"):
         if status != inferred_status:
             raise ValueError("判定 status 与 mismatches 不一致")
-        return JudgmentResult(status=status, mismatches=mismatches)
+        if status == "passed" and unverifiable:
+            raise ValueError("存在无法判断的预期不能 passed")
+        error = data.get("error", "")
+        if unverifiable and (not isinstance(error, str) or not error.strip()):
+            raise ValueError("无法判断的预期必须提供 error 原因")
+        return JudgmentResult(status=status, mismatches=mismatches,
+                              error=error if unverifiable else "", unverifiable_expectation_ids=unverifiable)
     if mismatches:
         raise ValueError("failed/inconclusive 不能同时包含 mismatch")
     error = data.get("error")
     if not isinstance(error, str) or not error.strip():
         raise ValueError("failed/inconclusive 必须提供非空 error 原因")
-    return JudgmentResult(status=status, error=error.strip())
+    return JudgmentResult(status=status, error=error.strip(), unverifiable_expectation_ids=unverifiable)
 
 
 def parse_mismatches(text: str) -> list[ExpectationMismatch]:

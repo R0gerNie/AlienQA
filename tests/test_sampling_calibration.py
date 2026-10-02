@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from alienqa.expectation.contracts import merge_samples
+from alienqa.expectation.contracts import merge_samples, _merge_samples_v2
 
 CORPUS = Path(__file__).parent / "fixtures/sampling-calibration/first-samples.json"
 TARGETED_CORPUS = CORPUS.with_name("targeted-v2-samples.json")
@@ -25,7 +25,8 @@ def merge(samples, action="click 保存"):
                          ids=lambda case: case["source"] + ":" + case["id"])
 def test_first_real_pairs_preserve_original_representatives_and_pending_review(case):
     before = deepcopy(case["samples"])
-    accepted, unresolved, diagnostic = merge(case["samples"], case["action"])
+    diagnostic = {}
+    accepted, unresolved = _merge_samples_v2(case["samples"], action_desc=case["action"], diagnostics=diagnostic)
     assert len(accepted) == case["expected_accepted"]
     assert diagnostic["coverage"] == case["expected_coverage"]
     assert diagnostic["merge_version"].startswith("sampling-merge-v2")
@@ -56,9 +57,9 @@ def test_compatible_feedback_requirements_share_basis_without_forced_union():
 def test_unknown_addition_does_not_remove_shared_requirement():
     a, b = row("保存后应说明操作结果"), row("打开陌生的业务面板")
     accepted, unresolved, diagnostic = merge([[a], [a, b]])
-    assert accepted == [a]
-    assert [item["texts"] for item in unresolved] == [[b["text"]]]
-    assert diagnostic["coverage"] == "partial"
+    assert len(accepted) == 2 and a in accepted and b in accepted
+    assert not unresolved and diagnostic["relationship_warnings"]
+    assert diagnostic["coverage"] == "complete"
 
 
 @pytest.mark.parametrize("samples", [
@@ -66,11 +67,11 @@ def test_unknown_addition_does_not_remove_shared_requirement():
     [[row("保存后应有可见反馈")], [row("保存后不应出现可见反馈")]],
     [[row("保存后应有可见反馈")], [row("保存后应有可见反馈"), row("保存后不应出现可见反馈")]],
 ])
-def test_known_conflicts_block_both_sides_even_with_majority_or_single_sample(samples):
+def test_known_conflicts_keep_both_sides_even_with_majority_or_single_sample(samples):
     accepted, unresolved, diagnostic = merge(samples)
-    assert accepted == []
-    assert {item["reason_code"] for item in unresolved} == {"conflict"}
-    assert diagnostic["coverage"] == "none"
+    assert len(accepted) == 2 and not unresolved
+    assert {item["reason_code"] for item in diagnostic["relationship_warnings"]} == {"conflict"}
+    assert diagnostic["coverage"] == "complete"
 
 
 @pytest.mark.parametrize("strong", [
@@ -82,21 +83,21 @@ def test_known_conflicts_block_both_sides_even_with_majority_or_single_sample(sa
     "点击保存后，界面应提供可查看的操作结果，反馈形式不限，但必须显示 toast。",
 ])
 def test_limits_conditions_negation_and_extra_clauses_are_not_stripped(strong):
-    accepted, unresolved, _ = merge([[row("保存后应说明操作结果")], [row(strong)]])
-    assert not accepted
-    assert unresolved and {item["reason_code"] for item in unresolved} == {"relation_unknown"}
+    accepted, unresolved, diagnostic = merge([[row("保存后应说明操作结果")], [row(strong)]])
+    assert len(accepted) == 2 and row(strong) in accepted and not unresolved
+    assert {item["reason_code"] for item in diagnostic["relationship_warnings"]} == {"relation_unknown"}
 
 
 def test_other_control_cannot_be_equated_to_current_action():
     accepted, unresolved, _ = merge([[row("保存后应说明操作结果")], [row("删除后应说明操作结果")]])
-    assert not accepted and unresolved
+    assert len(accepted) == 2 and not unresolved
 
 
 def test_other_action_cannot_inherit_save_specific_outcome_clauses():
     normal = row("删除后应说明操作结果")
     other_object = row("删除后，界面应提供可观察的操作结果反馈，让我能判断操作是否完成，或是否因当前状态无法保存")
     accepted, unresolved, _ = merge([[normal], [other_object]], action="click 删除")
-    assert accepted == [] and unresolved
+    assert len(accepted) == 2 and other_object in accepted and not unresolved
 
 
 @pytest.mark.parametrize("basis", [("visible_copy", "保存"), ("interaction_convention", "操作应有结果反馈")])
@@ -113,7 +114,7 @@ def test_cross_basis_paraphrase_requires_supported_relationship():
     samples = [[row("保存后应说明操作结果")], [row("保存后应有可见结果反馈", "惯例", "interaction_convention")]]
     assert len(merge(samples)[0]) == 1
     assert not merge(samples)[1]
-    assert not merge([[row("打开弹窗")], [row("直接跳转", "惯例", "interaction_convention")]])[0]
+    assert len(merge([[row("打开弹窗")], [row("直接跳转", "惯例", "interaction_convention")]])[0]) == 2
 
 
 def test_order_does_not_change_representatives_and_members_keep_source_indices():
@@ -136,9 +137,8 @@ def test_empty_generation_has_no_check_coverage():
 def test_merged_limit_reports_all_candidates_without_silent_truncation():
     diagnostic = {}
     samples = [[row(f"要求{i}") for i in range(3)], [row(f"要求{i}") for i in range(3, 6)]]
-    with pytest.raises(ValueError, match="5"):
-        merge_samples(samples, action_desc="click 保存", diagnostics=diagnostic)
-    assert diagnostic["error_code"] == "merged_limit_exceeded"
+    accepted, unresolved = merge_samples(samples, action_desc="click 保存", diagnostics=diagnostic)
+    assert len(accepted) == 6 and not unresolved
     assert len(diagnostic["groups"]) == 6
 
 
@@ -157,7 +157,7 @@ def test_generation_keeps_sampling_completeness_and_frozen_group_identity():
     assert generation["sampling"] == {"requested": 2, "returned": 2, "validated": 2, "complete": True}
     assert generation["coverage"] == "complete"
     assert generation["groups"][0]["expectation_id"] == expectations[0].id
-    assert generation["prompt_version"] == "general-user-v2"
+    assert generation["prompt_version"] == "general-user-v4"
 
 
 def test_generation_template_is_optional_and_does_not_rewrite_restrictive_claims():
@@ -172,7 +172,7 @@ def test_generation_template_is_optional_and_does_not_rewrite_restrictive_claims
     assert "不要求每个动作都提出它" in prompt
     assert "不能省略条件" in prompt
     assert expected[0].text == "保存后必须出现 toast"
-    assert expected[0].prompt_version == "general-user-v2"
+    assert expected[0].prompt_version == "general-user-v4"
 
 
 @pytest.mark.parametrize("failure", [ValueError("model timeout"), "not json", '{"expectations":[]}'])
@@ -192,11 +192,10 @@ def test_sampling_failures_and_empty_arrays_have_distinct_accounting(failure):
     saved = []
     engine.roles.on_generation = lambda data: saved.append(deepcopy(data))
     if isinstance(failure, Exception) or failure == "not json":
-        with pytest.raises(ValueError):
-            engine.expect(context(), PageInfo(), Action("click", Target(text="保存")))
+        assert len(engine.expect(context(), PageInfo(), Action("click", Target(text="保存")))) == 1
         assert not engine.last_generation["sampling"]["complete"]
         assert engine.last_generation["sampling"]["validated"] == 1
-        assert engine.last_generation["coverage"] == "none"
+        assert engine.last_generation["coverage"] == "complete"
         assert engine.last_generation["samples"][-1]["status"] == "failed"
     else:
         assert len(engine.expect(context(), PageInfo(), Action("click", Target(text="保存")))) == 1

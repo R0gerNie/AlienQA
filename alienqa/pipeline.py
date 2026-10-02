@@ -409,7 +409,7 @@ class AlienQAPipeline:
                 expectations = exp_engine.expect(ctx, page_info, action=action)
                 step["expectations"] = [asdict(e) if is_dataclass(e) else {"text": str(e)} for e in expectations]
                 if not expectations:
-                    raise JudgmentError("未形成稳定且可验证的事前预期，认知检查未完成", status="inconclusive")
+                    raise JudgmentError("未形成可检查的事前预期，认知检查未完成", status="inconclusive")
                 if not all(valid_basis(getattr(e, "expectation_basis", None)) for e in expectations):
                     raise ValueError("事前预期缺少有效依据，认知检查未完成")
                 step["phases"]["expectation"] = "completed"
@@ -511,6 +511,7 @@ class AlienQAPipeline:
                 observation.run_id, observation.step_id, observation.action_id = result.run_id, step["step_id"], step["action_id"]
                 observation.before_text = ctx.visible_text
                 observation.after_text = builder.build(None, state, CtxObservation(visible_text=step.get("visible_result", "")), []).visible_text
+                observation.control_state = deepcopy(step.get("execution", {}).get("focus_observation", {}))
                 step["visual_observation"] = asdict(observation.visual)
                 step["phases"]["visual"] = "completed"
             except Exception as exc:
@@ -527,7 +528,8 @@ class AlienQAPipeline:
             self._checkpoint("judgment")
             try:
                 judgment = exp_engine.evaluate(expectations, observation)
-                step["judgment_result"] = {"status": judgment.status, "error": judgment.error}
+                step["judgment_result"] = {"status": judgment.status, "error": judgment.error,
+                                          "unverifiable_expectation_ids": getattr(judgment, "unverifiable_expectation_ids", [])}
                 step.update(status=judgment.status, cognitive_status=judgment.status, error=judgment.error)
                 if step.get("expectation_generation", {}).get("coverage") == "partial":
                     if judgment.status == "passed":

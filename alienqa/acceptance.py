@@ -47,7 +47,8 @@ def product_input(case, base):
 
 def review_template(rows, cases):
     index = {c.get('case_id',c['id']): c for c in cases}
-    return {'schema_version': 1, 'policy': 'Independent manual review; no automatic confirmation',
+    return {'schema_version': 1, 'required_for_acceptance': False,
+            'policy': 'Optional user feedback; opinions and false complaints never gate acceptance',
             'runs': [{'id': row['id'], 'case_id': row.get('case_id'),
                       'run_id': row.get('run_id'), 'checkpoint_seq': row.get('checkpoint_seq'),
                       'status': row['status'], 'reference': index.get(row.get('case_id'), {}).get('labels', {}),
@@ -97,11 +98,13 @@ def assess(rows, cases, review):
             'discovery': {'numerator': found, 'denominator': expected, 'unexplored': unexplored},
             'false_complaints': {'numerator': false_count, 'denominator': controls},
             'reasonable_design_runs': dispositions['reasonable_design'], 'dispositions': dict(dispositions),
-            'review_minutes': minutes, 'independent_review_complete': independent,
-            'release_effect_gate': False, 'notice': 'Counts are a small-sample baseline, not accuracy. Real app/usefulness/threshold approval remains separate.'}
+            'review_minutes': minutes if reviewed else None, 'independent_review_complete': independent,
+            'required_for_acceptance': False,
+            'release_effect_gate': False, 'notice': 'Optional opinions only; no accuracy or false-positive threshold. Engineering acceptance is separate.'}
 
 
 def evidence_matrix(records):
+    required = ['structure', 'browser_mechanism', 'installation', 'real_model']
     levels = {name: 'not_run' for name in ('structure', 'browser_mechanism', 'installation', 'real_model', 'independent_review', 'user_trial')}
     platforms = {name: 'not_run' for name in ('macOS', 'Ubuntu', 'Windows')}
     for row in records:
@@ -112,11 +115,12 @@ def evidence_matrix(records):
         current = levels[row['level']]
         priority={'not_run':0,'passed':1,'blocked':2,'failed':3}
         levels[row['level']] = max((current,row['status']),key=priority.get)
-        if row.get('platform') in platforms:
+        if row.get('platform') in platforms and row['level'] in required:
             platforms[row['platform']] = row['status']
-    return {'schema_version': 1, 'records': records, 'levels': levels, 'platforms': platforms,
-            'release_ready': all(levels[k] == 'passed' for k in levels),
-            'notice': 'Evidence levels and exact combinations are separate; a local pass does not verify other platforms.'}
+    return {'schema_version': 2, 'records': records, 'levels': levels, 'platforms': platforms,
+            'required_levels': required, 'optional_levels': ['independent_review', 'user_trial'],
+            'release_ready': all(levels[k] == 'passed' for k in required),
+            'notice': 'Engineering gates only; user opinions never gate release. Local results do not verify other platforms.'}
 
 
 def serve_cases(directory):

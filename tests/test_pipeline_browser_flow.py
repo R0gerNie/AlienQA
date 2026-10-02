@@ -53,7 +53,7 @@ def test_browser_issue_to_reviewed_self_contained_report(monkeypatch, http_base_
     assert package["replay"]["url"].endswith("/demo-app/index.html")
     assert package["replay"]["action_sequence"] == []
     recorded = package["replay"]["target_action"]
-    assert {key: recorded[key] for key in ("type", "target", "text")} == result.steps[0]["action"]
+    assert {key: recorded[key] for key in result.steps[0]["action"]} == result.steps[0]["action"]
     assert recorded["step_id"] == result.steps[0]["step_id"]
     assert recorded["locator"] == result.steps[0]["execution"]["locator"]
     assert package["before_state_id"] == result.steps[0]["state_before"]

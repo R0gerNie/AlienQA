@@ -33,6 +33,7 @@
     <label><input id="spa_fallback" type="checkbox">为本机静态 SPA 启用 history 页面回退</label>
     <p class="muted">以上三项仅用于本机静态服务；已有 URL 包含部署条件。资源或 API 缺失仍返回 404。</p>
     <label for="samples">事前预期采样次数</label><input id="samples" type="number" min="1" step="1" value="2">
+    <p class="hint">一次即可运行；多次采样取并集，帮助想到不同疑点，会增加模型调用。出现次数不代表可信度。</p>
     <label for="browser">浏览器</label><select id="browser"><option value="chrome">本机 Chrome</option><option value="chromium">Playwright Chromium</option></select>
   </details>
   <p class="muted">探索预算在动作边界检查；模型请求另有超时。控制台另有整任务 watchdog，停止后保留已提交证据。</p>

@@ -69,7 +69,7 @@ def test_six_roles_samples_fallback_repair_and_report_accounting(http_base_url, 
     expectation = next(row for row in rows if row['role'] == 'expectation')
     assert expectation['step_id'] == 'ST-00001' and expectation['phase'] == 'expectation'
     assert expectation['input_ref'].endswith('/input/cognitive')
-    assert expectation['prompt_version'] == 'general-user-v2'
+    assert expectation['prompt_version'] == 'general-user-v4'
     repair = next(row for row in rows if row['purpose'] == 'judge_repair')
     assert repair['parent_call_id'] and repair['parse_status'] == 'succeeded'
     app.config['report_builder'] = ReportBuilder(pipeline.client)
