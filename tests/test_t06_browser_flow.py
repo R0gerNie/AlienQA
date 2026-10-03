@@ -14,6 +14,7 @@ from alienqa.loader import ProjectLoader
 from alienqa.mapper import ProductMap
 from alienqa.pipeline import AlienQAPipeline
 from alienqa.review import HumanReview, ReportBuilder, create_app
+from alienqa.review.offline_review import OFFLINE_REVIEW_SCRIPT
 from alienqa.run_writer import load_snapshot
 from test_ui_app import _make_app
 from test_ui_browser_flow import page
@@ -113,14 +114,15 @@ def test_real_scan_review_download_and_offline(surface, page, http_base_url, tmp
         exported.value.save_as(str(output))
     tab.context.set_offline(True)
     tab.goto(output.as_uri())
-    expect(tab.locator("section")).to_have_count(len(result.evidences))
+    expect(tab.locator(".finding")).to_have_count(len(result.evidences))
     expect(tab.locator("body")).to_contain_text("现在确认：仍保留原始依据")
     expect(tab.locator("body")).to_contain_text("扫描不完整")
     expect(tab.locator("body")).to_contain_text("fixture action exception")
     expect(tab.locator("body")).to_contain_text("事前依据")
     assert tab.locator("img").count() >= 2
     assert tab.locator("img").evaluate_all("images => images.every(img => img.complete && img.naturalWidth > 0)")
-    assert tab.evaluate("window.PWN") is None and tab.locator("script").count() == 0
+    assert tab.evaluate("window.PWN") is None and tab.locator("script").count() == 1
+    assert tab.locator('#alienqa-offline-review').text_content() == OFFLINE_REVIEW_SCRIPT.split('>', 1)[1].rsplit('</script>', 1)[0]
     assert errors == []
 
 

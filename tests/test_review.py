@@ -6,6 +6,7 @@ import pytest
 from alienqa.evidence import Evidence, Severity
 from alienqa.llm import LLMClient, LLMConfig, RoleConfig
 from alienqa.review import Decision, HumanReview, ReportBuilder, ReviewState, create_app
+from alienqa.review.offline_review import OFFLINE_REVIEW_SCRIPT
 
 
 class _FakeLiteLLM:
@@ -149,6 +150,8 @@ def test_report_sanitizes_model_html_but_keeps_readable_report(reporter):
     state = ReviewState()
     state.decide("EV-001", Decision.CONFIRMED)
     html = builder.build([_ev("EV-001", expectation="Recorded expectation")], state).html
+    assert html.count('<script') == 1 and OFFLINE_REVIEW_SCRIPT in html
+    html = html.replace(OFFLINE_REVIEW_SCRIPT, '')
     for unsafe in ('<script', '/settings', 'display:none', 'hidden iframe', 'hidden object',
                    'hidden svg', 'hidden math', 'onerror=', 'javascript:', 'onclick=', 'id="evil"', 'style="color'):
         assert unsafe not in html
