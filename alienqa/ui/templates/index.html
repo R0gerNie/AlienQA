@@ -1,76 +1,80 @@
 {% extends "base.html" %}
 {% block body %}
-<h1>运行扫描</h1>
+<h1>{{ _('运行扫描') }}</h1>
 <form id="run-form">
-  <label for="mode">扫描方式</label>
-  <select id="mode"><option value="source" {% if settings.mode == 'source' %}selected{% endif %}>项目源码 / 静态产物</option><option value="browser" {% if settings.mode == 'browser' %}selected{% endif %}>网站 URL（黑盒）</option></select>
-  <label>项目路径</label>
+  <label for="mode">{{ _('扫描方式') }}</label>
+  <select id="mode"><option value="source" {% if settings.mode == 'source' %}selected{% endif %}>{{ _('项目源码 / 静态产物') }}</option><option value="browser" {% if settings.mode == 'browser' %}selected{% endif %}>{{ _('网站 URL（黑盒）') }}</option></select>
+  <label>{{ _('项目路径') }}</label>
   <div style="display:flex; gap:.5em; max-width:560px;">
-    <input type="text" id="project_path" name="project_path" value="{{ settings.project_path }}" placeholder="例如 d:\my-project" style="flex:1;">
-    <button type="button" class="secondary" onclick="openBrowser()">浏览…</button>
+    <input type="text" id="project_path" name="project_path" value="{{ settings.project_path }}" placeholder="{{ _('例如 d:\\my-project') }}" style="flex:1;">
+    <button type="button" class="secondary" onclick="openBrowser()">{{ _('浏览…') }}</button>
   </div>
 
-  <label for="base_url">网站 URL / 已启动项目地址</label>
+  <label for="base_url">{{ _('网站 URL / 已启动项目地址') }}</label>
   <input type="text" id="base_url" value="{{ settings.base_url }}" placeholder="http://localhost:3000">
-  <p class="muted">网站扫描填写 URL。框架源码需先启动项目，再填写运行地址；静态 HTML 和 dist/build/out 产物可直接扫描。</p>
+  <p class="muted">{{ _('网站扫描填写 URL。框架源码需先启动项目，再填写运行地址；静态 HTML 和 dist/build/out 产物可直接扫描。') }}</p>
 
-  <label for="storage_state">登录态文件（可选）</label>
-  <input type="text" id="storage_state" value="{{ settings.storage_state }}" placeholder="已保存的 Playwright storage_state JSON 路径">
+  <label for="storage_state">{{ _('登录态文件（可选）') }}</label>
+  <input type="text" id="storage_state" value="{{ settings.storage_state }}" placeholder="{{ _('已保存的 Playwright storage_state JSON 路径') }}">
 
-  <label>测试单元（本次要测哪个单元 / 页面 / 功能）</label>
-  <textarea id="unit" name="unit" rows="2" placeholder="例如：登录表单">{{ settings.unit }}</textarea>
+  <label>{{ _('测试单元（本次要测哪个单元 / 页面 / 功能）') }}</label>
+  <textarea id="unit" name="unit" rows="2" placeholder="{{ _('例如：登录表单') }}">{{ settings.unit }}</textarea>
 
-  <label>单元指令（针对该单元的具体要求，可选）</label>
-  <textarea id="instructions" name="instructions" rows="3" placeholder="例如：右侧的登录表单和提交按钮">{{ settings.instructions }}</textarea>
+  <label>{{ _('单元指令（针对该单元的具体要求，可选）') }}</label>
+  <textarea id="instructions" name="instructions" rows="3" placeholder="{{ _('例如：右侧的登录表单和提交按钮') }}">{{ settings.instructions }}</textarea>
 
-  <p class="muted">范围与单元指令仅帮助定位；找不到范围会明确停止，不作为预期的正确答案。</p>
-  <label for="max_actions">最多尝试动作数</label><input id="max_actions" type="number" min="1" step="1" value="10">
-  <label for="max_seconds">探索时间预算（秒）</label><input id="max_seconds" type="number" min="0.1" step="any" value="300">
-  <details><summary>高级输入</summary>
-    <label for="app_path">应用目录（相对项目根目录）</label><input id="app_path" type="text" placeholder="例如 apps/web；多个应用时必填">
-    <label for="static_entry">静态页面相对路径（可选）</label><input id="static_entry" type="text" placeholder="相对 dist/build/out；默认 index.html 或第一个 HTML">
-    <label for="base_path">静态部署路径</label><input id="base_path" type="text" value="/" placeholder="例如 /tool/">
-    <label><input id="spa_fallback" type="checkbox">为本机静态 SPA 启用 history 页面回退</label>
-    <p class="muted">以上三项仅用于本机静态服务；已有 URL 包含部署条件。资源或 API 缺失仍返回 404。</p>
-    <label for="samples">事前预期采样次数</label><input id="samples" type="number" min="1" step="1" value="2">
-    <p class="hint">一次即可运行；多次采样取并集，帮助想到不同疑点，会增加模型调用。出现次数不代表可信度。</p>
-    <label for="browser">浏览器</label><select id="browser"><option value="chrome">本机 Chrome</option><option value="chromium">Playwright Chromium</option></select>
+  <p class="muted">{{ _('范围与单元指令仅帮助定位；找不到范围会明确停止，不作为预期的正确答案。') }}</p>
+  <label for="max_actions">{{ _('最多尝试动作数') }}</label><input id="max_actions" type="number" min="1" step="1" value="10">
+  <label for="max_seconds">{{ _('探索时间预算（秒）') }}</label><input id="max_seconds" type="number" min="0.1" step="any" value="300">
+  <details><summary>{{ _('高级输入') }}</summary>
+    <label for="app_path">{{ _('应用目录（相对项目根目录）') }}</label><input id="app_path" type="text" placeholder="{{ _('例如 apps/web；多个应用时必填') }}">
+    <label for="static_entry">{{ _('静态页面相对路径（可选）') }}</label><input id="static_entry" type="text" placeholder="{{ _('相对 dist/build/out；默认 index.html 或第一个 HTML') }}">
+    <label for="base_path">{{ _('静态部署路径') }}</label><input id="base_path" type="text" value="/" placeholder="{{ _('例如 /tool/') }}">
+    <label><input id="spa_fallback" type="checkbox">{{ _('为本机静态 SPA 启用 history 页面回退') }}</label>
+    <p class="muted">{{ _('以上三项仅用于本机静态服务；已有 URL 包含部署条件。资源或 API 缺失仍返回 404。') }}</p>
+    <label for="samples">{{ _('事前预期采样次数') }}</label><input id="samples" type="number" min="1" step="1" value="2">
+    <p class="hint">{{ _('一次即可运行；多次采样取并集，帮助想到不同疑点，会增加模型调用。出现次数不代表可信度。') }}</p>
+    <label for="browser">{{ _('浏览器') }}</label><select id="browser"><option value="chrome">{{ _('本机 Chrome') }}</option><option value="chromium">Playwright Chromium</option></select>
   </details>
-  <p class="muted">探索预算在动作边界检查；模型请求另有超时。控制台另有整任务 watchdog，停止后保留已提交证据。</p>
-  <div style="margin-top:1em;"><button type="submit">开始扫描</button></div>
+  <p class="muted">{{ _('探索预算在动作边界检查；模型请求另有超时。控制台另有整任务 watchdog，停止后保留已提交证据。') }}</p>
+  <div style="margin-top:1em;"><button type="submit">{{ _('开始扫描') }}</button></div>
 </form>
 <div id="status" style="margin-top:1em;"></div>
 
-<h2>最近扫描</h2>
+<h2>{{ _('最近扫描') }}</h2>
 <table>
-  <tr><th>扫描目录</th><th>项目</th><th>状态</th><th>证据</th><th>Issue</th><th></th></tr>
+  <tr><th>{{ _('扫描目录') }}</th><th>{{ _('项目') }}</th><th>{{ _('状态') }}</th><th>{{ _('证据') }}</th><th>Issue</th><th></th></tr>
   {% for r in recent %}
   <tr>
     <td><code>{{ r.id }}</code></td>
     <td>{{ r.project_path or '—' }}</td>
-    <td><span class="badge {{ r.status }}">{{ r.status }}</span> <span class="muted">{{ r.progress.data_status }} · {{ r.progress.phase or "未记录阶段" }}</span></td>
-    <td>{{ r.progress.evidence_count if r.progress.evidence_count is defined else "未记录" }}</td>
-    <td>{{ r.progress.issue_count if r.progress.issue_count is defined else "未记录" }}</td>
-    <td><a href="/runs/{{ r.id }}">查看</a></td>
+    <td><span class="badge {{ r.status }}">{{ status_labels.get(r.status, r.status) }}</span> <span class="muted">{{ status_labels.get(r.progress.data_status, r.progress.data_status) }} · {{ phase_labels.get(r.progress.phase, r.progress.phase) or _('未记录阶段') }}</span></td>
+    <td>{{ r.progress.evidence_count if r.progress.evidence_count is defined else _('未记录') }}</td>
+    <td>{{ r.progress.issue_count if r.progress.issue_count is defined else _('未记录') }}</td>
+    <td><a href="/runs/{{ r.id }}">{{ _('查看') }}</a></td>
   </tr>
   {% else %}
-  <tr><td colspan="6" class="muted">暂无扫描记录</td></tr>
+  <tr><td colspan="6" class="muted">{{ _('暂无扫描记录') }}</td></tr>
   {% endfor %}
 </table>
 
 <div id="browse-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.3); z-index:10;">
   <div style="background:#fff; margin:3rem auto; width:640px; max-height:72vh; overflow:auto; border-radius:8px; padding:1em;">
-    <h3 style="margin-top:0;">选择目录 <span id="browse-close" style="float:right; cursor:pointer;">✕</span></h3>
+    <h3 style="margin-top:0;">{{ _('选择目录') }} <span aria-label="{{ _('关闭') }}" id="browse-close" style="float:right; cursor:pointer;">✕</span></h3>
     <div id="browse-path" class="muted" style="margin-bottom:.5em;"></div>
     <ul id="browse-list" style="list-style:none; padding:0; margin:0;"></ul>
     <div style="margin-top:.8em;">
-      <button type="button" class="secondary" onclick="browseUp()">上一级</button>
-      <button type="button" onclick="selectCurrent()">选择当前目录</button>
+      <button type="button" class="secondary" onclick="browseUp()">{{ _('上一级') }}</button>
+      <button type="button" onclick="selectCurrent()">{{ _('选择当前目录') }}</button>
     </div>
   </div>
 </div>
 
 <script>
+const statusLabels = {{ status_labels|tojson }};
+const phaseLabels = {{ phase_labels|tojson }};
+function localizedStatus(value) { return statusLabels[value] || value; }
+function localizedPhase(value) { return phaseLabels[value] || value; }
 let currentPath = "";
 function openBrowser() { document.getElementById('browse-modal').style.display = 'block'; browse(''); }
 document.getElementById('browse-close').onclick = () => document.getElementById('browse-modal').style.display = 'none';
@@ -78,7 +82,7 @@ async function browse(path) {
   const r = await fetch('/api/browse?path=' + encodeURIComponent(path));
   const d = await r.json();
   currentPath = d.path;
-  document.getElementById('browse-path').textContent = d.path || '（磁盘根）';
+  document.getElementById('browse-path').textContent = d.path || {{ _('（磁盘根）')|tojson }};
   const ul = document.getElementById('browse-list');
   ul.innerHTML = '';
   for (const e of d.entries) {
@@ -121,10 +125,10 @@ document.getElementById('run-form').onsubmit = async function (ev) {
     instructions: document.getElementById('instructions').value.trim(),
   };
   const st = document.getElementById('status');
-  st.innerHTML = '<span class="badge running">启动中…</span>';
+  st.replaceChildren(); const starting = document.createElement('span'); starting.className = 'badge running'; starting.textContent = {{ _('启动中…')|tojson }}; st.appendChild(starting);
   const r = await fetch('/api/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
   const d = await r.json();
-  if (!r.ok) { st.textContent = d.error || '启动失败'; return; }
+  if (!r.ok) { st.textContent = d.error || {{ _('启动失败')|tojson }}; return; }
   poll(d.run_id);
 };
 function poll(runId) {
@@ -132,26 +136,26 @@ function poll(runId) {
   fetch('/api/run/' + runId).then(r => r.json()).then(d => {
     if (d.status === 'running') {
       const p = d.progress || {};
-      st.textContent = '扫描中…阶段 ' + (p.phase || '准备') + '，已尝试 ' + (p.attempts ?? '未记录') + '，已有证据 ' + (p.evidence_count ?? '未记录') + '。 ';
+      st.textContent = {{ _('扫描中…阶段 {phase}，已尝试 {attempts}，已有证据 {count}。 ')|tojson }}.replace('{phase}', localizedPhase(p.phase) || {{ _('准备')|tojson }}).replace('{attempts}', p.attempts ?? {{ _('未记录')|tojson }}).replace('{count}', p.evidence_count ?? {{ _('未记录')|tojson }});
       const stop = document.createElement('button');
-      stop.textContent = '停止扫描';
+      stop.textContent = {{ _('停止扫描')|tojson }};
       stop.onclick = async () => {
         stop.disabled = true;
         const response = await fetch('/api/run/' + runId + '/stop', {method: 'POST'});
         const body = await response.json();
-        st.textContent = response.ok ? '正在停止任务与浏览器…' : body.error;
+        st.textContent = response.ok ? {{ _('正在停止任务与浏览器…')|tojson }} : body.error;
       };
       st.appendChild(stop);
       setTimeout(() => poll(runId), 3000);
     } else if (d.status === 'done' || d.status === 'partial') {
-      st.textContent = (d.status === 'partial' ? '扫描未完整完成，请查看无法判断和失败记录。' : '扫描完成。') + '证据 ' + d.evidence_count + '，Issue ' + d.issue_count + '。 ';
+      st.textContent = (d.status === 'partial' ? {{ _('扫描未完整完成，请查看无法判断和失败记录。')|tojson }} : {{ _('扫描完成。')|tojson }}) + {{ _('证据 {count}，Issue {issues}。 ')|tojson }}.replace('{count}', d.evidence_count).replace('{issues}', d.issue_count);
       const link = document.createElement('a');
       link.href = '/runs/' + runId;
-      link.textContent = '查看结果 / 审核';
+      link.textContent = {{ _('查看结果 / 审核')|tojson }};
       st.appendChild(link);
     } else {
-      st.textContent = d.status + '：' + (d.error || '') + ' ';
-      const link = document.createElement('a'); link.href = '/runs/' + runId; link.textContent = '查看已保存证据与诊断'; st.appendChild(link);
+      st.textContent = localizedStatus(d.status) + {{ _('：')|tojson }} + (d.error || '') + ' ';
+      const link = document.createElement('a'); link.href = '/runs/' + runId; link.textContent = {{ _('查看已保存证据与诊断')|tojson }}; st.appendChild(link);
     }
   });
 }

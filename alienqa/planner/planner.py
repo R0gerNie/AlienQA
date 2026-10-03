@@ -1,4 +1,6 @@
 """ActionPlanner：greedy 探索策略 + 端到端探索循环。"""
+from alienqa.i18n import t as tr
+
 import time
 import math
 import re
@@ -66,14 +68,14 @@ class ActionPlanner:
                                 actions.append(Action("type", target, sample, input_branch=branch))
                         else:
                             self.input_diagnostics.append({"label": text, "status": "unverified",
-                                                           "reason": "可见约束不支持 JSON 样本，未绕过约束"})
+                                                           "reason": tr("可见约束不支持 JSON 样本，未绕过约束")})
                     elif not el.get("value"):
                         value = _sample_value(el)
                         if value is not None:
                             actions.append(Action("type", target, value))
                         else:
                             self.input_diagnostics.append({"label": text, "status": "unverified",
-                                                           "reason": "无法根据可见输入约束构造合法样本，未提交该字段"})
+                                                           "reason": tr("无法根据可见输入约束构造合法样本，未提交该字段")})
                     elif el.get("focused"):
                         actions.append(Action("blur", target))
                     elif input_type == "search" or el.get("implicit_submit") or (

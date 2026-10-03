@@ -3,6 +3,7 @@
 # DASHSCOPE_API_KEY / DEEPSEEK_API_KEY / ...），不写入本文件。
 
 llm:
+  # language: zh                # Set to en for English model output, UI and reports.
   default_provider: openai        # 裸模型名（不含 /）默认挂到此 provider
   request_timeout: 120
 

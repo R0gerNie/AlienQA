@@ -1,4 +1,5 @@
 """结构化 Action 与 Target 模型。"""
+from ..i18n import t
 from dataclasses import dataclass, field
 
 
@@ -45,7 +46,7 @@ class Action:
     @classmethod
     def from_dict(cls, d: dict) -> "Action":
         if not isinstance(d, dict):
-            raise ValueError(f"action 需要 dict，收到 {type(d)!r}")
+            raise ValueError(t("action 需要 dict，收到 {type}", type=repr(type(d))))
         return cls(
             type=d.get("type", ""),
             target=Target.from_dict(d.get("target") or {}),
@@ -66,14 +67,14 @@ def describe_visible_action(action) -> str:
     label = get("text") or get("name") or get("label")
     if not label:
         identity = visible_target(action)
-        label = f"无文案 {identity.get('role') or '控件'}"
+        label = t("无文案 {role}", role=identity.get("role") or t("控件"))
         position = identity.get("position")
         if position:
-            label += f"（页面位置 x={position['x']}, y={position['y']}）"
+            label += t("（页面位置 x={x}, y={y}）", x=position["x"], y=position["y"])
         if identity.get("popup"):
-            label += f"，可展开 {identity['popup']}"
+            label += t("，可展开 {popup}", popup=identity["popup"])
     from .runtime import clean_message
-    return clean_message(f"{kind} {label or '当前控件'}").strip()[:200]
+    return clean_message(f"{kind} {label or t('当前控件')}").strip()[:200]
 
 
 def visible_target(action) -> dict:

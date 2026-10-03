@@ -1,4 +1,6 @@
 """组装 InvestigatorContext（专家可看源码/DOM/技术信号）。"""
+from alienqa.i18n import t as tr
+
 import json
 from pathlib import Path
 from ..driver.runtime import clean_message
@@ -15,10 +17,10 @@ def build_investigator_context(project, issue, evidences, driver=None) -> Invest
         ctx.source = retrieve_source(project, issue, evidences)
     ctx.input_status = {
         "source": {"status": "bounded_snippets" if ctx.source else "unavailable",
-                   "limit": "所选应用文件片段；不含 source map、组件树或服务端追踪"},
+                   "limit": tr("所选应用文件片段；不含 source map、组件树或服务端追踪")},
         "missing_members": sorted(member_ids - {ev.id for ev in evidences}),
         "snapshots": [],
-        "screenshots": "仅提供保存路径与缺失状态；本调查文本通道不读取图片像素",
+        "screenshots": tr("仅提供保存路径与缺失状态；本调查文本通道不读取图片像素"),
     }
     for ev in evidences:
         artifacts = ev.artifacts or {}
@@ -41,10 +43,9 @@ def build_investigator_context(project, issue, evidences, driver=None) -> Invest
     ctx.stack_trace = _stack_trace(evidences)
     ctx.console = _signals(evidences, "console")
     ctx.network = _signals(evidences, "network")
-    summary = [f"问题 {getattr(issue, 'id', '')}：{getattr(issue, 'title', '')}"]
+    summary = [tr("问题 {id}：{title}", id=getattr(issue, "id", ""), title=getattr(issue, "title", ""))]
     for ev in evidences:
-        summary.append(f"证据 {ev.id}\n预期：{ev.expectation}\n实际：{ev.observation_summary}\n"
-                       f"触发动作：{_describe(ev.action)}")
+        summary.append(tr("证据 {id}\n预期：{expectation}\n实际：{observation}\n触发动作：{action}", id=ev.id, expectation=ev.expectation, observation=ev.observation_summary, action=_describe(ev.action)))
     ctx.action_trace = "\n\n".join(summary) + "\n\n" + _action_trace(evidences)
     return ctx
 
@@ -66,7 +67,7 @@ def _saved_dom(evidences) -> str:
                 continue
             if snapshot:
                 blocks.append(f"{ev.id} {name} ({(ev.artifacts or {}).get('snapshot_kind', 'legacy_unknown')})\n{snapshot}" +
-                              ("\n[截断：保存快照输入共限 5000 字符]" if len(content) > remaining else ""))
+                              (tr("\n[截断：保存快照输入共限 5000 字符]") if len(content) > remaining else ""))
                 remaining -= len(snapshot)
     return "\n\n".join(blocks)
 
@@ -124,4 +125,4 @@ def _describe(action) -> str:
         label = target.get("text") or target.get("selector") or ""
     else:
         label = str(target)
-    return clean_message(f"{t} {label}".strip()) + (" 输入值保留在本机回放包" if action.get("text") else "")
+    return clean_message(f"{t} {label}".strip()) + (tr(" 输入值保留在本机回放包") if action.get("text") else "")

@@ -1,4 +1,5 @@
 """LLMClient：LiteLLM 封装，支持模型轮换与故障自动回退。"""
+from ..i18n import t
 import base64
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -53,7 +54,7 @@ class LLMClient:
         try:
             return getattr(self.sink, method)(*args, **kwargs)
         except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError) as exc:
-            message = f"计量保存失败：{public_text(exc)}"
+            message = t("计量保存失败：{error}", language=self.config.language, error=public_text(exc))
             self.metering_errors.append(message)
             try:
                 atomic_write_json(self.sink.directory / "llm" / "metering-errors.json", self.metering_errors)
@@ -75,7 +76,7 @@ class LLMClient:
         self._last_call.set(call)
         rc = self.config.role(role)
         if rc is None or not rc.model:
-            error = ValueError(f"未配置 LLM 角色 '{role}' 的模型")
+            error = ValueError(t("未配置 LLM 角色 '{role}' 的模型", language=self.config.language, role=role))
             if call:
                 self._record("finish_call", call, "local_failed", error=error)
                 self._record("write_summary")
@@ -139,10 +140,10 @@ class LLMClient:
             try:
                 choices = _field(resp, "choices")
                 if not choices:
-                    raise ValueError("供应商响应缺少 choices")
+                    raise ValueError(t("供应商响应缺少 choices", language=self.config.language))
                 text = _field(_field(choices[0], "message"), "content")
                 if not isinstance(text, str) or not text.strip():
-                    raise ValueError("供应商响应缺少有效 content")
+                    raise ValueError(t("供应商响应缺少有效 content", language=self.config.language))
             except (ValueError, TypeError, AttributeError, IndexError) as exc:
                 error = last_error = exc
             if index:
@@ -157,9 +158,9 @@ class LLMClient:
         if call:
             self._record("finish_call", call, "failed" if attempted else "local_failed", error=last_error)
             self._record("write_summary")
-        raise RuntimeError(f"LLM 调用全部失败 (models={models}): {public_text(last_error)}")
+        raise RuntimeError(t("LLM 调用全部失败 (models={models}): {error}", language=self.config.language, models=models, error=public_text(last_error)))
 
-    def complete_vision(self, role: str, text: str, images: list) -> LLMResponse:
+    def complete_vision(self, role: str, text: str, images: list, *, system: str | None = None) -> LLMResponse:
         content = [{"type": "text", "text": text}]
         try:
             for img in images:
@@ -174,12 +175,14 @@ class LLMClient:
                 self._record("finish_call", call, "local_failed", error=exc)
                 self._record("write_summary")
             raise
-        return self.complete(role, [{"role": "user", "content": content}])
+        messages = [{"role": "system", "content": system}] if system else []
+        messages.append({"role": "user", "content": content})
+        return self.complete(role, messages)
 
     def model_for(self, role: str) -> str:
         rc = self.config.role(role)
         if rc is None or not rc.model:
-            raise ValueError(f"未配置 LLM 角色 '{role}' 的模型")
+            raise ValueError(t("未配置 LLM 角色 '{role}' 的模型", language=self.config.language, role=role))
         return resolve_model(rc.model, self.config.default_provider)
 
 

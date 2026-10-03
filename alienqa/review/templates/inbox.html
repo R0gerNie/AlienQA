@@ -1,28 +1,29 @@
-<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>AlienQA 证据审核</title>
+<!doctype html><html lang="{{ language }}"><head><meta charset="utf-8"><title>{{ _('AlienQA 证据审核') }}</title>
 <style>body{font-family:system-ui;margin:2rem;color:#1f2328}table{border-collapse:collapse;width:100%}td,th{border:1px solid #d0d7de;padding:.7rem;vertical-align:top}pre{white-space:pre-wrap;overflow-wrap:anywhere}img{max-width:100%}textarea{display:block;width:95%}label{display:block;margin:.5rem 0}.toolbar a{margin-right:1rem}</style></head><body>
-<h1>证据审核</h1><div class="toolbar">
-<a href="/?sort=severity">按严重度排序</a><a href="/?sort=alphabetical">按字母序排序</a>
-<a href="/report?mode=analysis">QA 与用户认知分析</a><a href="/report?mode=confirmed">确认问题报告</a>
-<a href="/report?mode=analysis&download=1">下载分析</a><a href="/report?mode=confirmed&download=1">下载确认问题报告</a></div>
-<table><tr><th>ID / 严重度</th><th>原始发现</th><th>决定与备注</th></tr>
-{% for r in rows %}<tr><td><code>{{ r.id }}</code><p>{{ r.severity }}</p></td><td><details><summary>原始发现与依据</summary>
-<p>来源：{{ r.finding_kind or '旧记录：未记录' }}</p>
-<h4>事前预期</h4><p>{{ r.expectation or ('技术候选：认知预期不适用' if r.finding_kind == 'technical_anomaly' else '未记录') }}</p>
-<h4>事前依据</h4>{% if r.basis %}<pre>{{ r.basis | tojson(indent=2) }}</pre>{% else %}<p>{{ '技术候选：认知依据不适用（null）' if r.finding_kind == 'technical_anomaly' else '旧记录：未记录依据' }}</p>{% endif %}
-<h4>{{ '技术候选摘要' if r.finding_kind == 'technical_anomaly' else '模型观察摘要' }}</h4><p>{{ r.observation or '未记录' }}</p>
-<h4>模型推理</h4><p>{{ r.reasoning or '未记录' }}</p>
-<h4>原始动作 / 来源 ID</h4><pre>{{ r.action | tojson(indent=2) }}</pre><pre>{{ r.source_record_ids | tojson }}</pre>
-<h4>采集技术信号</h4><pre>{{ r.technical | tojson(indent=2) }}</pre>
-<h4>动作前后截图</h4>{{ r.images | safe }}
+<nav aria-label="Language"><a href="{{ language_url('zh') }}" lang="zh">中文</a> · <a href="{{ language_url('en') }}" lang="en">English</a></nav>
+<h1>{{ _('证据审核') }}</h1><div class="toolbar">
+<a href="/?sort=severity">{{ _('按严重度排序') }}</a><a href="/?sort=alphabetical">{{ _('按字母序排序') }}</a>
+<a href="/report?mode=analysis">{{ _('QA 与用户认知分析') }}</a><a href="/report?mode=confirmed">{{ _('确认问题报告') }}</a>
+<a href="/report?mode=analysis&download=1">{{ _('下载分析') }}</a><a href="/report?mode=confirmed&download=1">{{ _('下载确认问题报告') }}</a></div>
+<table><tr><th>{{ _('ID / 严重度') }}</th><th>{{ _('原始发现') }}</th><th>{{ _('决定与备注') }}</th></tr>
+{% for r in rows %}<tr><td><code>{{ r.id }}</code><p>{{ severity_labels.get(r.severity, r.severity) }}</p></td><td><details><summary>{{ _('原始发现与依据') }}</summary>
+<p>{{ _('来源：') }}{{ finding_labels.get(r.finding_kind, r.finding_kind) or _('旧记录：未记录') }}</p>
+<h4>{{ _('事前预期') }}</h4><p>{{ r.expectation or (_('技术候选：认知预期不适用') if r.finding_kind == 'technical_anomaly' else _('未记录')) }}</p>
+<h4>{{ _('事前依据') }}</h4>{% if r.basis %}<pre>{{ r.basis | tojson(indent=2) }}</pre>{% else %}<p>{{ _('技术候选：认知依据不适用（null）') if r.finding_kind == 'technical_anomaly' else _('旧记录：未记录依据') }}</p>{% endif %}
+<h4>{{ _('技术候选摘要') if r.finding_kind == 'technical_anomaly' else _('模型观察摘要') }}</h4><p>{{ r.observation or _('未记录') }}</p>
+<h4>{{ _('模型推理') }}</h4><p>{{ r.reasoning or _('未记录') }}</p>
+<h4>{{ _('原始动作 / 来源 ID') }}</h4><pre>{{ r.action | tojson(indent=2) }}</pre><pre>{{ r.source_record_ids | tojson }}</pre>
+<h4>{{ _('采集技术信号') }}</h4><pre>{{ r.technical | tojson(indent=2) }}</pre>
+<h4>{{ _('动作前后截图') }}</h4>{{ r.images | safe }}
 </details></td><td><div data-review="{{ r.id }}">
-  <label>开发者决定 <select name="decision" aria-label="开发者决定">
-    {% for value, label in decision_labels.items() %}<option value="{{ value }}" {% if r.decision == value %}selected{% endif %} {% if value == 'pending' %}disabled{% endif %}>{{ label }}</option>{% endfor %}
+  <label>{{ _('开发者决定') }} <select name="decision" aria-label="{{ _('开发者决定') }}">
+    {% for value, label in decision_labels.items() %}<option value="{{ value }}" {% if r.decision == value %}selected{% endif %} {% if value == 'pending' %}disabled{% endif %}>{{ _(label) }}</option>{% endfor %}
   </select></label>
-  <label>备注 <textarea name="note" aria-label="备注" rows="3">{{ r.note }}</textarea></label>
-  <button type="button" class="save-decision">保存决定</button>
-  <span class="save-status" role="status">{{ decision_labels[r.decision] }}{% if r.note %} · 已保存备注{% endif %}</span>
+  <label>{{ _('备注') }} <textarea name="note" aria-label="{{ _('备注') }}" rows="3">{{ r.note }}</textarea></label>
+  <button type="button" class="save-decision">{{ _('保存决定') }}</button>
+  <span class="save-status" role="status">{{ _(decision_labels[r.decision]) }}{% if r.note %} · {{ _('已保存备注') }}{% endif %}</span>
 </div></td></tr>
-{% else %}<tr><td colspan="3">未记录发现</td></tr>{% endfor %}</table>
+{% else %}<tr><td colspan="3">{{ _('未记录发现') }}</td></tr>{% endfor %}</table>
 <script>document.querySelectorAll('[data-review]').forEach(function (row) {
   const button = row.querySelector('.save-decision');
   const select = row.querySelector('select');
@@ -31,22 +32,22 @@
   button.onclick = async function () {
     const payload = {evidence_id: row.dataset.review, decision: select.value, note: note.value};
     button.disabled = select.disabled = note.disabled = true;
-    output.textContent = '正在保存…';
+    output.textContent = {{ _('正在保存…')|tojson }};
     try {
       const response = await fetch('/decide', {
         method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
       });
       let result;
       try { result = await response.json(); }
-      catch (_) { throw new Error('服务器返回了无法读取的响应（HTTP ' + response.status + '）'); }
+      catch (_) { throw new Error({{ _('服务器返回了无法读取的响应（HTTP {status}）')|tojson }}.replace('{status}', response.status)); }
       if (!response.ok) { throw new Error(result.error || ('HTTP ' + response.status)); }
       if (result.ok !== true || result.evidence_id !== payload.evidence_id ||
           result.decision !== payload.decision || result.note !== payload.note) {
-        throw new Error('服务器未确认所提交的决定与备注');
+        throw new Error({{ _('服务器未确认所提交的决定与备注')|tojson }});
       }
-      output.textContent = '已保存：' + select.options[select.selectedIndex].text;
+      output.textContent = {{ _('已保存：')|tojson }} + select.options[select.selectedIndex].text;
     } catch (error) {
-      output.textContent = '保存失败：' + error.message + '。编辑内容已保留，可重试。';
+      output.textContent = {{ _('保存失败：{error}。编辑内容已保留，可重试。')|tojson }}.replace('{error}', error.message);
     } finally { button.disabled = select.disabled = note.disabled = false; }
   };
 });</script></body></html>

@@ -5,6 +5,7 @@
 - 测试单元写了具体模块 → 先用 LLM 按语义从候选入口里挑；失败则关键词确定性兜底。
 """
 from __future__ import annotations
+from ..i18n import t
 
 import os
 import re
@@ -20,7 +21,8 @@ _NOISE_DIRS = {
 }
 
 # 「全部」的语义等价表达
-_ALL_TOKENS = {"", "全部", "all", "所有", "整个", "整个项目", "全局", "整体", "全部功能", "全部页面"}
+_ALL_TOKENS = {"", "全部", "all", "所有", "整个", "整个项目", "全局", "整体", "全部功能", "全部页面",
+               "all pages", "all features", "all functionality", "entire project", "whole project"}
 
 
 def _score(rel: Path) -> int:
@@ -88,7 +90,7 @@ class EntryDetector:
                     if c.endswith("/" + entry) or entry.endswith(c):
                         self.roles.mark_parse("succeeded")
                         return c
-                self.roles.mark_parse("failed", "entry 不在候选清单")
+                self.roles.mark_parse("failed", t("entry 不在候选清单"))
             except (ValueError, TypeError) as exc:
                 self.roles.mark_parse("failed", exc)
                 continue

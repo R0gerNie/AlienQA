@@ -1,6 +1,7 @@
 """LLM 层数据模型与配置。"""
 from dataclasses import dataclass, field
 from enum import Enum
+from ..i18n import normalize_language
 
 
 class Role(str, Enum):
@@ -33,6 +34,10 @@ class LLMConfig:
     roles: dict = field(default_factory=dict)  # Role.value -> RoleConfig
     codex_executable: str = "codex"
     codex_reasoning_effort: str = "low"
+    language: str = "zh"
+
+    def __post_init__(self):
+        self.language = normalize_language(self.language)
 
     @classmethod
     def from_dict(cls, data: dict) -> "LLMConfig":
@@ -42,6 +47,7 @@ class LLMConfig:
             request_timeout=float(llm.get("request_timeout", 120.0)),
             codex_executable=str((llm.get("codex") or {}).get("executable", "codex")),
             codex_reasoning_effort=str((llm.get("codex") or {}).get("reasoning_effort", "low")),
+            language=data.get("language", llm.get("language", "zh")) if isinstance(data, dict) else "zh",
         )
         for key, val in (llm.get("roles") or {}).items():
             cfg.roles[key] = RoleConfig(

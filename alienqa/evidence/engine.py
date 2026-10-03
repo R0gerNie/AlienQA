@@ -1,4 +1,6 @@
 """EvidenceEngine：把每条 mismatch 枚举成一条 Evidence，并落盘（可复现）。"""
+from alienqa.i18n import t as tr
+
 import time
 from copy import deepcopy
 from pathlib import Path
@@ -28,11 +30,11 @@ class EvidenceEngine:
                              if getattr(e, "text", None) == m.expectation
                              and (not getattr(m, "expectation_id", "") or getattr(e, "id", "") == m.expectation_id)), None)
             if any(getattr(e, "id", "") for e in expectations or []) and not getattr(m, "expectation_id", ""):
-                raise ValueError("新认知 Evidence 必须引用事前 expectation_id")
+                raise ValueError(tr("新认知 Evidence 必须引用事前 expectation_id"))
             if getattr(m, "expectation_id", "") and (expected is None or any(
                     getattr(expected, key, None) != value for key, value in
                     (("run_id", run_id), ("step_id", step_id), ("action_id", action_id)))):
-                raise ValueError("认知 Evidence 的事前预期身份不匹配")
+                raise ValueError(tr("认知 Evidence 的事前预期身份不匹配"))
             basis = getattr(expected, "expectation_basis", None)
             out.append(Evidence(
                 id=ev_id,
@@ -78,7 +80,7 @@ class EvidenceEngine:
                                 for r in records)
             out.append(Evidence(id=ev_id, schema_version=2, finding_kind="technical_anomaly",
                                 expectation_basis=None, expectation="", observation_summary=summary,
-                                reasoning="浏览器原始异常候选；影响和可接受性需人工核对", severity=Severity.MAJOR,
+                                reasoning=tr("浏览器原始异常候选；影响和可接受性需人工核对"), severity=Severity.MAJOR,
                                 classification="technical_bug", confidence=None,
                                 timestamp=time.strftime("%Y-%m-%dT%H:%M:%S"), action=_serialize_action(action),
                                 artifacts=self._write_artifacts(ev_id, observation, before_state, state),

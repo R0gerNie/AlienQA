@@ -1,4 +1,6 @@
 """Investigation 数据模型。"""
+from alienqa.i18n import t as tr
+
 from dataclasses import dataclass, field
 
 from ..llm.jsonutil import loads_object
@@ -51,7 +53,7 @@ def parse_investigation(text: str, issue_id: str) -> Investigation:
     """解析 investigate 的 JSON 输出。失败抛 ValueError。"""
     data = loads_object(text)
     if not isinstance(data.get("root_cause_hypothesis"), str) or not data["root_cause_hypothesis"].strip():
-        raise ValueError("调查输出缺少根因假设（无法确定时请明确说明）")
+        raise ValueError(tr("调查输出缺少根因假设（无法确定时请明确说明）"))
     fields = ("root_cause_hypothesis", "reproduction_steps", "technical_evidence", "affected_components")
     return Investigation.from_dict({key: data[key] for key in fields if key in data}, issue_id=issue_id)
 

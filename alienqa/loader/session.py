@@ -5,6 +5,7 @@
 保存为 JSON 文件；之后扫描时经 `Project.storage_state` 复用。
 """
 from __future__ import annotations
+from ..i18n import t
 
 from pathlib import Path
 
@@ -20,7 +21,7 @@ def capture_session(url: str, out_path: str | Path) -> Path:
         context = browser.new_context()
         page = context.new_page()
         page.goto(url)
-        input(f"请在浏览器里完成登录，然后回到终端按回车保存会话 → {out}\n")
+        input(t("请在浏览器里完成登录，然后回到终端按回车保存会话 → {path}\n", path=out))
         context.storage_state(path=str(out))
         browser.close()
     return out

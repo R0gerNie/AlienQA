@@ -10,6 +10,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from typing import Callable
+from ..i18n import t
 
 
 def _process_entry(ready, target, args) -> None:
@@ -71,7 +72,7 @@ class JobController:
         job = _Job(token, task_id, worker, ready, threading.Event())
         with self._lock:
             if self._active is None or self._active.token != token:
-                raise RuntimeError("任务名额已失效")
+                raise RuntimeError(t("任务名额已失效"))
             self._active = job
             try:
                 worker.start()

@@ -1,5 +1,7 @@
 # AlienQA
 
+[中文](README.md) | [English](README.en.md)
+
 **帮你发现产品里那些只有内部人才觉得理所当然的地方。**
 
 AlienQA 模拟一个懂相关行业、但第一次使用你产品的外部用户。它在浏览器中探索页面，带着事前预期执行操作，把实际所见与预期之间的落差保存成可查看、可回放的发现。
@@ -53,6 +55,18 @@ python -m alienqa --ui
 4. 设置动作数和时间预算，开始扫描，然后查看发现和分析报告。
 
 工具会实际填写表单、点击和提交，首次体验适合使用本地应用或可重置的测试数据。React、Vue、Next.js 等源码项目请先启动自己的开发服务器，再填入 URL；工具不会默认替你安装前端依赖。
+
+### 语言支持
+
+支持中文与英文。默认中文；使用英文界面、模型输出和报告可执行：
+
+```bash
+python -m alienqa --language en --ui
+python -m alienqa --language en --url http://localhost:3000 --browser chromium --artifacts-dir artifacts/english-run
+python -m alienqa --language en --help
+```
+
+也可以在模型配置的 `llm` 下设置 `language: en`，或设置 `ALIENQA_LANGUAGE=en`。命令行语言优先级为 `--language` > 配置文件 > `ALIENQA_LANGUAGE` > 中文。扫描使用控制台当前语言；导航栏的 English / 中文切换会改变后续扫描的语言，扫描记录会保存所用语言。产品本身的文案、源码引用、用户备注及历史模型输出保留原文。
 
 ### 使用现有 Codex 登录
 

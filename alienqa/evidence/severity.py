@@ -1,6 +1,7 @@
 """严重度 / 置信度 / 分类的确定性规则（planbook：可先手写阈值，后续可学习）。"""
 from ..expectation.models import MismatchLevel
 from .models import Severity
+import re
 
 
 def _tech(observation) -> dict:
@@ -55,7 +56,11 @@ def classify(mismatch, observation, action) -> str:
     text = f"{mismatch.expectation} {mismatch.observation} {mismatch.reasoning}"
     if any(k in text for k in ("文案", "误导", "看不懂")):
         return "misleading_copy"
+    if re.search(r"\b(?:wording|misleading|incomprehensible|cannot understand|can't understand|not understandable)\b", text, re.I):
+        return "misleading_copy"
     if any(k in text for k in ("反馈", "提示", "确认", "成功")):
+        return "missing_feedback"
+    if re.search(r"\b(?:feedback|prompt|notification|confirmation|confirm|success|successful)\b", text, re.I):
         return "missing_feedback"
     # 含"长得像按钮/可点击但点了没反应、可能不是按钮"这类视觉 affordance 问题
     return "ux_ambiguity"

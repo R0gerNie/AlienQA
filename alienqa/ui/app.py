@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import copy
+import re
 from html import escape
 import threading
 from functools import partial
@@ -12,6 +14,8 @@ from urllib.parse import urlparse
 
 from flask import Flask, jsonify, render_template, request, send_file
 
+from ..i18n import get_language, install_flask_i18n, language_context, t, translate_text
+from ..locales.ui import template_labels
 from ..local_run import ScanInput, select_project, static_directory, serve_project, source_context, valid_url, validate_config, check_output, check_url, check_browser
 from ..llm import LLMClient, load_config
 from ..llm.metering import MeteringSink
@@ -69,7 +73,19 @@ def _serve(directory: str, **deployment) -> tuple:
     return server, base.rstrip('/')
 
 
-def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: str | None = None) -> Flask:
+def _cached_report_language(path: Path) -> str | None:
+    """Read the artifact's own language, including reports from other writers."""
+    try:
+        with path.open(encoding="utf-8") as cached:
+            prefix = cached.read(512)
+    except (FileNotFoundError, UnicodeError):
+        return None
+    match = re.search(r"<html\b[^>]*\blang\s*=\s*(?:\"([^\"]+)\"|'([^']+)'|([^\s>]+))", prefix, re.I)
+    return next((value for value in match.groups() if value), None) if match else None
+
+
+def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: str | None = None,
+                  *, language: str | None = None) -> Flask:
     config = load_config(config_path)
     store = SettingsStore(settings_path or "config.local.yaml")
     settings = store.load()
@@ -77,6 +93,9 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
     providers = providers_from_config(config)
 
     app = Flask(__name__)
+    install_flask_i18n(app, default_language=language or config.language,
+                       prefer_default=language is not None or config.language != "zh")
+    app.context_processor(lambda: template_labels(get_language()))
     app.config["config_path"] = str(Path(config_path).resolve())
     app.config["config"] = config
     app.config["store"] = store
@@ -125,7 +144,7 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
     def api_run():
         data = request.get_json(force=True)
         if not isinstance(data, dict):
-            return jsonify({"error": "需要 JSON 对象"}), 400
+            return jsonify({"error": t("需要 JSON 对象")}), 400
         try:
             inputs = ScanInput.from_dict(data)
             validate_config(config)
@@ -136,7 +155,7 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
         mode, base_url, storage_state = inputs.mode, inputs.base_url, inputs.storage_state
         token = app.config["job_controller"].reserve()
         if token is None:
-            return jsonify({"error": "已有扫描或重放进行中，请稍候"}), 409
+            return jsonify({"error": t("已有扫描或重放进行中，请稍候")}), 409
         app.config["running"] = True
         settings.project_path = project_path
         settings.mode = mode
@@ -150,7 +169,8 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
             rec = runs.create(project_path or base_url, unit, inputs.static_entry, instructions,
                               mode=mode, base_url=base_url, storage_state=storage_state,
                               app_path=inputs.app_path, budget=inputs.budget(), browser=inputs.browser,
-                              base_path=inputs.base_path, spa_fallback=inputs.spa_fallback)
+                              base_path=inputs.base_path, spa_fallback=inputs.spa_fallback,
+                              language=inputs.language)
             _start_job(app, rec, token)
         except Exception as exc:  # noqa: BLE001
             app.config["job_controller"].release(token)
@@ -166,7 +186,7 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
         if runs.get(run_id) is None:
             return jsonify({"error": "not found"}), 404
         if not app.config["job_controller"].cancel(run_id):
-            return jsonify({"error": "该任务当前未运行"}), 409
+            return jsonify({"error": t("该任务当前未运行")}), 409
         return jsonify({"status": "cancelling"}), 202
 
     @app.route("/api/run/<run_id>/replay/<evidence_id>", methods=["POST"])
@@ -176,13 +196,13 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
             if rec is None or not any(e.id == evidence_id for e in runs.load_evidences(run_id)):
                 return jsonify({"error": "unknown evidence"}), 404
             if rec.status not in TERMINAL_STATUSES:
-                return jsonify({"error": "扫描尚未结束，暂时无法重放稳定快照"}), 409
+                return jsonify({"error": t("扫描尚未结束，暂时无法重放稳定快照")}), 409
             snapshot = load_snapshot(rec.dir)
             if snapshot is not None and snapshot.get("phase") != "terminal":
-                return jsonify({"error": "扫描检查点尚未结束，暂时无法重放稳定快照"}), 409
+                return jsonify({"error": t("扫描检查点尚未结束，暂时无法重放稳定快照")}), 409
         token = app.config["job_controller"].reserve()
         if token is None:
-            return jsonify({"error": "已有扫描或重放进行中，请稍候"}), 409
+            return jsonify({"error": t("已有扫描或重放进行中，请稍候")}), 409
         app.config["running"] = True
         try:
             with runs.lock:
@@ -225,7 +245,7 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
     def run_detail(run_id):
         rec = runs.get(run_id)
         if rec is None:
-            return "未找到该扫描", 404
+            return t("未找到该扫描"), 404
         report_exists = (rec.dir / "report.html").exists()
         review_ready = (rec.dir / "evidences.json").exists()
         try:
@@ -242,7 +262,7 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
     def run_review(run_id):
         rec = runs.get(run_id)
         if rec is None:
-            return "未找到该扫描", 404
+            return t("未找到该扫描"), 404
         with runs.lock:
             evidences = runs.load_evidences(run_id)
             state = runs.load_review(run_id)
@@ -261,16 +281,16 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
         try:
             with runs.lock:
                 if runs.get(run_id) is None:
-                    return jsonify({"error": "未找到该扫描"}), 404
+                    return jsonify({"error": t("未找到该扫描")}), 404
                 if not any(e.id == evidence_id for e in runs.load_evidences(run_id)):
-                    return jsonify({"error": "证据不存在"}), 404
+                    return jsonify({"error": t("证据不存在")}), 404
                 state = runs.load_review(run_id)
                 state.decide(evidence_id, decision, note)
                 runs.save_review(run_id, state)
         except StorageError:
             raise
         except OSError as exc:
-            return jsonify({"error": f"保存决定失败：{exc}"}), 500
+            return jsonify({"error": t("保存决定失败：{error}", error=exc)}), 500
         return jsonify({"ok": True, "evidence_id": evidence_id, "decision": decision.value, "note": note})
 
     @app.route("/runs/<run_id>/report")
@@ -283,31 +303,32 @@ def create_ui_app(config_path: str, settings_path: str | None = None, runs_dir: 
             with runs.lock:
                 rec = runs.get(run_id)
                 if rec is None:
-                    return "未找到该扫描", 404
+                    return t("未找到该扫描"), 404
                 snapshot = runs.load_report_snapshot(run_id)
                 builder = app.config["report_builder"]
                 if mode == "confirmed":
                     builder._validate(snapshot["evidences"], snapshot["state"])
                 path = rec.dir / REPORT_FILES[mode]
-                if not path.exists() or runs.load_usage(run_id).get("data_status") in {"corrupt", "storage_failed"}:
-                    result = builder.build(**snapshot, mode=mode)
+                if _cached_report_language(path) != get_language() or runs.load_usage(run_id).get("data_status") in {"corrupt", "storage_failed"}:
+                    result = builder.build(**snapshot, mode=mode, language=get_language())
                     atomic_write_bytes(path, result.html.encode("utf-8"))
                 return send_file(path.resolve(), mimetype="text/html", as_attachment=request.args.get("download") == "1",
                                  download_name=REPORT_FILES[mode], max_age=0)
         except StorageError:
             raise
         except ValueError as exc:
-            return (f"<p>无法生成报告：{escape(str(exc))}</p>"
-                    f"<p><a href='/runs/{escape(run_id, quote=True)}/report?mode=analysis'>查看 QA 与用户认知分析</a> · "
-                    f"<a href='/runs/{escape(run_id, quote=True)}/review'>返回审核</a></p>"), 409
+            message = t("无法生成报告：{error}", error=translate_text(str(exc)))
+            return (f"<p>{escape(message)}</p>"
+                    f"<p><a href='/runs/{escape(run_id, quote=True)}/report?mode=analysis'>{escape(t('查看 QA 与用户认知分析'))}</a> · "
+                    f"<a href='/runs/{escape(run_id, quote=True)}/review'>{escape(t('返回审核'))}</a></p>"), 409
         except OSError as exc:
-            return jsonify({"error": f"保存报告失败：{exc}"}), 500
+            return jsonify({"error": t("保存报告失败：{error}", error=exc)}), 500
 
     @app.errorhandler(StorageError)
     def storage_error(error):
         if request.path.startswith("/api/") or request.path.endswith("/decide"):
             return jsonify({"error": str(error), "data_status": error.status}), 409
-        return str(error), 409, {"Content-Type": "text/plain; charset=utf-8"}
+        return translate_text(str(error)), 409, {"Content-Type": "text/plain; charset=utf-8"}
 
     return app
 
@@ -341,6 +362,12 @@ def _start_job(app, rec, token: str) -> None:
 
 
 def _scan_worker(config_path: str, settings_data: dict, runs_dir: str, run_id: str) -> None:
+    rec = RunManager(runs_dir).get(run_id)
+    with language_context(rec.language if rec else "zh"):
+        _scan_worker_localized(config_path, settings_data, runs_dir, run_id)
+
+
+def _scan_worker_localized(config_path: str, settings_data: dict, runs_dir: str, run_id: str) -> None:
     """Everything that may wait on LLM/browser runs inside the child process."""
     runs = RunManager(runs_dir)
     rec = runs.get(run_id)
@@ -350,7 +377,8 @@ def _scan_worker(config_path: str, settings_data: dict, runs_dir: str, run_id: s
     completion = {}
     try:
         Settings.from_dict(settings_data).apply_to_env()
-        config = load_config(config_path)
+        config = copy.deepcopy(load_config(config_path))
+        config.language = rec.language
         validate_config(config)
         check_output(rec.dir)
         check_browser(rec.browser)
@@ -391,6 +419,12 @@ def _scan_worker(config_path: str, settings_data: dict, runs_dir: str, run_id: s
 
 
 def _complete_scan(app, run_id: str, failure: str | None) -> None:
+    rec = app.config["runs"].get(run_id)
+    with language_context(rec.language if rec else "zh"):
+        _complete_scan_localized(app, run_id, failure)
+
+
+def _complete_scan_localized(app, run_id: str, failure: str | None) -> None:
     runs = app.config["runs"]
     with runs.lock:
         rec = runs.get(run_id)
@@ -401,13 +435,13 @@ def _complete_scan(app, run_id: str, failure: str | None) -> None:
         status = failure
         try:
             if failure == "cleanup_failed":
-                message = "未能确认任务与子进程退出，保留并发锁"
+                message = t("未能确认任务与子进程退出，保留并发锁", rec.language)
                 runs.finish(run_id, failure, error=message)
                 app.config["running"] = True
                 return  # a worker may still own its files
             if failure:
-                message = {"timeout": "扫描超时，任务与浏览器已停止", "cancelled": "用户停止了扫描，任务与浏览器已停止",
-                           "error": "扫描进程异常退出"}.get(failure, failure)
+                message = t({"timeout": "扫描超时，任务与浏览器已停止", "cancelled": "用户停止了扫描，任务与浏览器已停止",
+                             "error": "扫描进程异常退出"}.get(failure, failure), rec.language)
                 saved = runs.append_terminal_diagnostic(run_id, failure, message)
             else:
                 completion = read_json(rec.dir / "completion.json")
@@ -438,6 +472,12 @@ def _complete_scan(app, run_id: str, failure: str | None) -> None:
 
 
 def _replay_worker(runs_dir: str, run_id: str, evidence_id: str) -> None:
+    rec = RunManager(runs_dir).get(run_id)
+    with language_context(rec.language if rec else "zh"):
+        _replay_worker_localized(runs_dir, run_id, evidence_id)
+
+
+def _replay_worker_localized(runs_dir: str, run_id: str, evidence_id: str) -> None:
     runs = RunManager(runs_dir)
     rec = runs.get(run_id)
     try:
@@ -451,6 +491,12 @@ def _replay_worker(runs_dir: str, run_id: str, evidence_id: str) -> None:
 
 
 def _complete_replay(app, run_id: str, evidence_id: str, failure: str | None) -> None:
+    rec = app.config["runs"].get(run_id)
+    with language_context(rec.language if rec else "zh"):
+        _complete_replay_localized(app, run_id, evidence_id, failure)
+
+
+def _complete_replay_localized(app, run_id: str, evidence_id: str, failure: str | None) -> None:
     runs = app.config["runs"]
     with runs.lock:
         rec = runs.get(run_id)
@@ -468,7 +514,7 @@ def _complete_replay(app, run_id: str, evidence_id: str, failure: str | None) ->
         if failure is not None or result.get("status") == "running" or not result:
             result = {**result, "evidence_id": evidence_id, "status": "inconclusive" if failure in {"timeout", "cancelled"} else "failed",
                       "termination": failure, "reproduced": False,
-                      "note": "重放已停止，目标是否再现未知" if failure in {"timeout", "cancelled"} else "重放进程未完成"}
+                      "note": t("重放已停止，目标是否再现未知" if failure in {"timeout", "cancelled"} else "重放进程未完成", rec.language)}
         try:
             runs.save_replay_result(run_id, evidence_id, result)
             path.unlink(missing_ok=True)

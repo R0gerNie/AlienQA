@@ -1,4 +1,6 @@
 """LLM 输出 JSON 的通用解析辅助：剥围栏、抠对象、loads。"""
+from alienqa.i18n import t as tr
+
 import json
 import re
 
@@ -14,7 +16,7 @@ def extract_json_object(text: str) -> str:
     start = t.find("{")
     end = t.rfind("}")
     if start == -1 or end == -1 or end <= start:
-        raise ValueError("未找到 JSON 对象")
+        raise ValueError(tr("未找到 JSON 对象"))
     return t[start:end + 1]
 
 
@@ -22,5 +24,5 @@ def loads_object(text: str) -> dict:
     """解析 LLM 返回的 JSON 为 dict。失败抛 ValueError / TypeError。"""
     data = json.loads(extract_json_object(text))
     if not isinstance(data, dict):
-        raise ValueError("JSON 顶层不是对象")
+        raise ValueError(tr("JSON 顶层不是对象"))
     return data

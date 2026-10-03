@@ -1,4 +1,5 @@
 """Playwright 实现：click/hover/type + 截图 + console/network 采集 + 回放数据。"""
+from ..i18n import t
 from dataclasses import asdict
 from copy import deepcopy
 import time
@@ -302,7 +303,7 @@ class PlaywrightDriver(BaseDriver):
         elif action.type == "blur":
             locator.blur(timeout=timeout)
         else:
-            raise ValueError(f"未知 action 类型: {action.type}")
+            raise ValueError(t("未知 action 类型: {type}", type=action.type))
 
     def _perform_at_coords(self, action: Action, x: int, y: int) -> None:
         if action.type == "click":
@@ -310,7 +311,7 @@ class PlaywrightDriver(BaseDriver):
         elif action.type == "hover":
             self._page.mouse.move(x, y)
         else:
-            raise ValueError(f"坐标兜底不支持 action 类型: {action.type}")
+            raise ValueError(t("坐标兜底不支持 action 类型: {type}", type=action.type))
 
     # ---- 读取 ----
 

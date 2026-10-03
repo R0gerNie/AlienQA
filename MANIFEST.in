@@ -1,5 +1,6 @@
 include requirements-dev.lock
 include LICENSE
+include README.en.md
 recursive-include config *.yaml
 recursive-include docs *.md
 recursive-include tests *.py *.html *.json *.js *.jsx *.ts *.tsx *.vue *.yaml *.md

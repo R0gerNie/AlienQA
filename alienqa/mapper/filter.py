@@ -2,6 +2,8 @@
 
 原则：先过滤、再交给 LLM。只读用户可见的页面/路由/文案片段，不读实现细节。
 """
+from alienqa.i18n import t as tr
+
 from pathlib import Path
 
 from ..loader.models import Project, VisibleFile
@@ -55,9 +57,9 @@ def build_surface_text(project: Project, root) -> str:
     """拼出"前端表面"文本：路由 + 入口 + 可见文件片段。"""
     sections = []
     if project.routes:
-        sections.append("路由:\n" + "\n".join(f"- {r}" for r in project.routes))
+        sections.append(tr("路由:\n") + "\n".join(f"- {r}" for r in project.routes))
     if project.entry_points:
-        sections.append("入口文件:\n" + "\n".join(f"- {e}" for e in project.entry_points))
+        sections.append(tr("入口文件:\n") + "\n".join(f"- {e}" for e in project.entry_points))
 
     total = sum(len(s) for s in sections)
     file_blocks = []
@@ -76,7 +78,7 @@ def build_surface_text(project: Project, root) -> str:
         total += len(block)
 
     if file_blocks:
-        sections.append("可见前端文件片段:\n" + "\n".join(file_blocks))
+        sections.append(tr("可见前端文件片段:\n") + "\n".join(file_blocks))
     return "\n\n".join(sections)
 
 

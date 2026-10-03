@@ -3,6 +3,18 @@ from contextlib import nullcontext
 from .client import LLMClient
 from .models import Role
 from .jsonutil import loads_object
+from ..i18n import get_language, language_context, normalize_language
+
+
+_ENGLISH_OUTPUT = (
+    "Write all generated natural-language prose in English, including explanations, "
+    "summaries, expectation text, repair responses and report headings. "
+    "Keep JSON keys, enum values, IDs, selectors, file paths and URLs unchanged. "
+    "Preserve quoted visible page text, evidence, expectation references and original "
+    "expectations verbatim in their source language; never translate observed facts "
+    "or rewrite a required exact reference. English expression templates are optional "
+    "wording only; retain all constraints and never invent a requirement to fit a template."
+)
 
 
 def _format_technical(technical: dict) -> str:
@@ -44,7 +56,22 @@ class LlmRoles:
         self.last_call_id = None
         self._calls = {}
 
-    def _invoke(self, method, *args, purpose, repair=False, sample_index=None, prompt_version="roles-v1"):
+    @property
+    def language(self):
+        configured = getattr(getattr(self.client, "config", None), "language", None)
+        return normalize_language(configured) if isinstance(configured, str) else get_language()
+
+    def _invoke(self, method, *args, purpose, repair=False, sample_index=None, prompt_version="roles-v1", language=None):
+        language = normalize_language(language) if language is not None else self.language
+        kwargs = {}
+        if language == "en":
+            if method == "complete":
+                args = (args[0], [{"role": "system", "content": _ENGLISH_OUTPUT}, *args[1]], *args[2:])
+            elif method == "complete_vision":
+                if isinstance(self.client, LLMClient):
+                    kwargs["system"] = _ENGLISH_OUTPUT
+                else:  # Keep the established lightweight client test-double contract.
+                    args = (args[0], _ENGLISH_OUTPUT + "\n\n" + args[1], *args[2:])
         scope = {"purpose": purpose + ("_repair" if repair else ""), "prompt_version": prompt_version,
                  "parent_call_id": self._calls.get(purpose) if repair or (sample_index and sample_index > 1) else None,
                  "sample_index": sample_index}
@@ -52,7 +79,7 @@ class LlmRoles:
         self.last_call_id = None
         try:
             with manager:
-                response = getattr(self.client, method)(*args)
+                response = getattr(self.client, method)(*args, **kwargs)
         except Exception:
             call_id = getattr(self.client, "last_call_id", None)
             if isinstance(call_id, str) and call_id:
@@ -140,16 +167,22 @@ class LlmRoles:
     # B 事前预期：可见资料与一般网页经验。
     def generate_expectations(self, gist: str, page_text: str, samples: int = 2, focus: str = "",
                               action_desc: str = "", with_basis: bool = False, frozen_input: dict | None = None) -> list:
+        with language_context(self.language):
+            return self._generate_expectations(gist, page_text, samples, focus, action_desc, with_basis, frozen_input)
+
+    def _generate_expectations(self, gist: str, page_text: str, samples: int = 2, focus: str = "",
+                               action_desc: str = "", with_basis: bool = False, frozen_input: dict | None = None) -> list:
         self.last_generation = {"samples": [], "unresolved": []}
-        from ..expectation.contracts import (PROMPT_VERSION, expression_templates,
+        from ..expectation.contracts import (generation_prompt_version, expression_templates,
                                             validate_generation_response, validate_reference, merge_samples)
         from ..expectation.sampling import MERGE_VERSION
         requested = max(1, samples)
+        prompt_version = generation_prompt_version(self.language)
         if with_basis:
-            self.last_generation.update(prompt_version=PROMPT_VERSION, merge_version=MERGE_VERSION,
+            self.last_generation.update(prompt_version=prompt_version, language=self.language, merge_version=MERGE_VERSION,
                                         sampling={"requested": requested, "returned": 0, "validated": 0, "complete": False},
                                         groups=[], coverage="none", coverage_reason="sampling_incomplete",
-                                        empty_samples=[], expression_templates=expression_templates(action_desc))
+                                        empty_samples=[], expression_templates=expression_templates(action_desc, language=self.language))
 
         def save_generation():
             if self.on_generation:
@@ -168,6 +201,8 @@ class LlmRoles:
         prompt = intro + "当前可见输入:\n" + (page_text if frozen_input is not None else page_text[:16000])
         results, sample_rows, last_failure = set(), [], None
         if with_basis:
+            feedback_template = ("After this operation, visible result feedback should be provided."
+                                 if self.language == "en" else "本次操作后应有可见结果反馈")
             prompt += ('\n只输出 JSON 对象 {"expectations":[{"text":"可观察预期",'
                        '"expectation_basis":{"type":"visible_copy|interaction_convention|observed_behavior",'
                        '"reference":"对应文案、明确惯例或前序可见结果"}}]}。'
@@ -186,7 +221,7 @@ class LlmRoles:
                        '历史仅是前序观察，不证明本次动作成功；不得用此前已有的 Saved 冒充当前反馈。'
                        '为减少等价要求的无意义措辞分歧：仅当你独立判断本次动作应有一般操作结果反馈，'
                        '且该要求没有特定结果、对象、时限、条件或实现限制时，text 原样使用'
-                       '「本次操作后应有可见结果反馈」。这只规范表达，不要求每个动作都提出它。'
+                       f'「{feedback_template}」。这只规范表达，不要求每个动作都提出它。'
                        '有额外限制的要求必须保留完整原文，不能省略条件或强套上述句子；不同要求分条。'
                        '下面的标准表述仅规范表达，不构成必须产生预期的要求。先独立判断要求及依据是否成立，'
                        '只有要求完全等价时才照抄。输入模板只适用于可见内容显示，不暗示密码明文、保存或提交；'
@@ -203,7 +238,7 @@ class LlmRoles:
                 self.last_generation["samples"].append(sample)
                 save_generation()
             try:
-                resp = self._invoke("complete", Role.EXPECTATION, [{"role": "user", "content": prompt}], purpose="generate_expectations", sample_index=sample_index, prompt_version=PROMPT_VERSION)
+                resp = self._invoke("complete", Role.EXPECTATION, [{"role": "user", "content": prompt}], purpose="generate_expectations", sample_index=sample_index, prompt_version=prompt_version)
             except BaseException as exc:
                 if with_basis:
                     sample.update(status="cancelled" if isinstance(exc, KeyboardInterrupt) else "failed", error=str(exc) or type(exc).__name__, error_stage="invocation")
@@ -338,7 +373,7 @@ class LlmRoles:
         return self._invoke("complete", Role.INVESTIGATOR, [{"role": "user", "content": text}], purpose="investigate", repair=repair).text
 
     # F 报告编排（可配置，生成 HTML 片段）：给 12
-    def compose_report(self, evidence_json: str, *, mode="confirmed") -> str:
+    def compose_report(self, evidence_json: str, *, mode="confirmed", language=None) -> str:
         text = (
             "你是测试分析撰写人。下面是保存的发现及开发者决定（JSON）。\n"
             f"报告模式：{mode}。analysis 保留未审、按设计、不采信及跳过；只有 confirmed 是人工采信。\n"
@@ -352,4 +387,4 @@ class LlmRoles:
             "3. 用语义化 HTML（h1/h2/table/ul/ol/code），样式简洁可读。\n\n"
             f"证据数据:\n{evidence_json[:16000]}"
         )
-        return self._invoke("complete", Role.REPORTER, [{"role": "user", "content": text}], purpose="compose_report").text
+        return self._invoke("complete", Role.REPORTER, [{"role": "user", "content": text}], purpose="compose_report", language=language).text

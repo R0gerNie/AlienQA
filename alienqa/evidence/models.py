@@ -1,6 +1,7 @@
 """Evidence Engine 数据模型：4 级严重度 + 分类 + 八要素。"""
 from dataclasses import dataclass, field
 from enum import Enum
+from ..i18n import t
 
 
 class Severity(str, Enum):
@@ -73,13 +74,13 @@ class Evidence:
     def from_dict(cls, data: dict) -> "Evidence":
         """Load current and older evidence documents without requiring new fields."""
         if data.get("schema_version") not in (None, 1, 2):
-            raise ValueError("不支持的 Evidence schema_version")
+            raise ValueError(t("不支持的 Evidence schema_version"))
         if data.get("finding_kind") not in (None, "technical_anomaly", "cognitive_mismatch"):
-            raise ValueError("无效 finding_kind")
+            raise ValueError(t("无效 finding_kind"))
         if data.get("finding_kind") == "cognitive_mismatch" and not valid_basis(data.get("expectation_basis")):
-            raise ValueError("认知证据缺少有效的事前依据")
+            raise ValueError(t("认知证据缺少有效的事前依据"))
         if data.get("finding_kind") == "technical_anomaly" and data.get("expectation_basis") is not None:
-            raise ValueError("技术证据不能虚构认知依据")
+            raise ValueError(t("技术证据不能虚构认知依据"))
         values = {name: data[name] for name in cls.__dataclass_fields__ if name in data}
         values["severity"] = Severity(data.get("severity") or Severity.MINOR.value)
         return cls(**values)

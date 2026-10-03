@@ -1,6 +1,8 @@
 """HumanReview：审核服务（inbox / decide / accepted / 排序）。"""
 from pathlib import Path
 
+from ..i18n import t
+
 from ..evidence.models import Severity
 from .models import Decision, ReviewState
 from ..persistence import atomic_write_json
@@ -14,20 +16,20 @@ DECISION_LABELS = {"pending": "待审", "confirmed": "确认问题", "rejected":
 
 def parse_decision(payload):
     if not isinstance(payload, dict):
-        raise ValueError("需要 JSON 对象")
+        raise ValueError(t("需要 JSON 对象"))
     evidence_id, value, note = payload.get("evidence_id"), payload.get("decision"), payload.get("note", "")
     if not isinstance(evidence_id, str) or not evidence_id.strip():
-        raise ValueError("evidence_id 必须是非空字符串")
+        raise ValueError(t("evidence_id 必须是非空字符串"))
     if not isinstance(value, str) or value not in {"confirmed", "rejected", "by-design", "skipped"}:
-        raise ValueError("decision 只允许 confirmed/rejected/by-design/skipped")
+        raise ValueError(t("decision 只允许 confirmed/rejected/by-design/skipped"))
     if not isinstance(note, str):
-        raise ValueError("note 必须是字符串")
+        raise ValueError(t("note 必须是字符串"))
     return evidence_id, Decision(value), note
 
 
 def report_mode(value):
     if value not in REPORT_FILES:
-        raise ValueError("mode 只允许 analysis/confirmed")
+        raise ValueError(t("mode 只允许 analysis/confirmed"))
     return value
 
 
@@ -44,7 +46,7 @@ def evidence_row(e, state, run_dir=None):
             "observation": e.observation_summary, "reasoning": e.reasoning,
             "action": e.action, "artifacts": e.artifacts, "source_record_ids": e.source_record_ids,
             "technical": _technical(e, run_dir),
-            "images": "".join(_image(e.artifacts.get(key), label, run_dir) for key, label in
+            "images": "".join(_image(e.artifacts.get(key), t(label), run_dir) for key, label in
                               (("before", "动作前"), ("after", "动作后")))}
 
 _SEVERITY_ORDER = {

@@ -1,4 +1,5 @@
 """Owned local static service; deployment mount and navigation-only SPA fallback."""
+from .i18n import t
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -8,11 +9,11 @@ from urllib.parse import unquote, urlsplit
 
 def normalize_base_path(value='/'):
     if not isinstance(value, str):
-        raise ValueError('部署子路径必须是字符串')
+        raise ValueError(t('部署子路径必须是字符串'))
     path = unquote(value)
     if (not path.startswith('/') or path.startswith('//') or any(c in path for c in ('?', '#', '\\', '%'))
             or any(p in ('.', '..') for p in path.split('/')) or any(c.isspace() for c in path)):
-        raise ValueError('部署子路径必须是站内绝对路径，例如 /tool/')
+        raise ValueError(t('部署子路径必须是站内绝对路径，例如 /tool/'))
     return path.rstrip('/') + '/' if path != '/' else '/'
 
 

@@ -1,4 +1,5 @@
 """Selected-app artifact facts; directory names do not prove runnable HTML."""
+from ..i18n import t
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -22,10 +23,10 @@ def validate_html(directory, entry, base_path='/'):
     directory = Path(directory).resolve()
     path = (directory / entry).resolve()
     if not path.is_relative_to(directory) or path.suffix.lower() != '.html' or not path.is_file():
-        raise ValueError('未找到可运行的 HTML 入口，请提供项目运行 URL')
+        raise ValueError(t('未找到可运行的 HTML 入口，请提供项目运行 URL'))
     text = path.read_text(encoding='utf-8', errors='replace')
     if '%PUBLIC_URL%' in text:
-        raise ValueError('HTML 引用未构建源码，请先启动项目并填写运行 URL')
+        raise ValueError(t('HTML 引用未构建源码，请先启动项目并填写运行 URL'))
     resources = _Resources()
     resources.feed(text)
     for reference in resources.resources:
@@ -36,19 +37,19 @@ def validate_html(directory, entry, base_path='/'):
         if not resource:
             continue
         if Path(resource).suffix.lower() in ('.tsx', '.jsx', '.vue', '.ts') or '/src/' in resource:
-            raise ValueError('HTML 引用未构建源码，请先启动项目并填写运行 URL')
+            raise ValueError(t('HTML 引用未构建源码，请先启动项目并填写运行 URL'))
         if resource.startswith('/'):
             if base_path != '/' and resource.startswith(base_path):
                 resource = resource[len(base_path):]
             elif base_path != '/':
-                raise ValueError(f'静态资源不在部署前缀 {base_path} 内：{url.path}')
+                raise ValueError(t('静态资源不在部署前缀 {base_path} 内：{path}', base_path=base_path, path=url.path))
             else:
                 resource = resource.lstrip('/')
             candidate = (directory / resource).resolve()
         else:
             candidate = (path.parent / resource).resolve()
         if not candidate.is_relative_to(directory) or not candidate.is_file():
-            raise ValueError(f'静态 HTML 所需资源缺失：{url.path}；请提供完整产物或运行 URL')
+            raise ValueError(t('静态 HTML 所需资源缺失：{path}；请提供完整产物或运行 URL', path=url.path))
     return path
 
 
@@ -79,11 +80,11 @@ def static_entry(project, entry='', base_path='/'):
         default = 'index.html' if (directory / 'index.html').is_file() else candidates[0]['entries'][0]
     else:
         if (root / 'package.json').is_file() or project.framework not in ('Unknown', 'Static HTML') or facts['candidates']:
-            raise ValueError('框架源码/服务型产物需要先启动项目并填写运行 URL，或提供完整 dist/build/out 静态产物')
+            raise ValueError(t('框架源码/服务型产物需要先启动项目并填写运行 URL，或提供完整 dist/build/out 静态产物'))
         directory = root
         entries = sorted(path.name for path in root.glob('*.html') if path.is_file())
         if not entries and not entry:
-            raise ValueError('没有可直接运行的静态 HTML；请填写项目运行 URL')
+            raise ValueError(t('没有可直接运行的静态 HTML；请填写项目运行 URL'))
         default = 'index.html' if 'index.html' in entries else entries[0] if entries else entry
     selected = entry or default
     validate_html(directory, selected, base_path)

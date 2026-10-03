@@ -1,4 +1,6 @@
 """Deduplicator：两级聚类把 Evidence 归并为 Issue（并查集）。"""
+from alienqa.i18n import t as tr
+
 from pathlib import Path
 import json
 
@@ -128,16 +130,16 @@ class Deduplicator:
             reverse=True,
         )
         top = evs[0]
-        title = (top.expectation or top.observation_summary or "未命名问题")[:60]
+        title = (top.expectation or top.observation_summary or tr("未命名问题"))[:60]
         return Issue(
             id=f"ISSUE-{issue_no:03d}",
             title=title,
             evidence_ids=sorted(e.id for e in evs),
             root_cause_candidate="",
             severity=top.severity,
-            grouping_basis="相同页面、动作和具体技术事实" if top.finding_kind == "technical_anomaly" and _hard_key(top) else
-                           "相同原预期、依据和动作的组织候选" if top.finding_kind == "cognitive_mismatch" else
-                           "独立证据" if len(evs) == 1 else "旧记录相似度组织候选；未证明共同根因",
+            grouping_basis=tr("相同页面、动作和具体技术事实") if top.finding_kind == "technical_anomaly" and _hard_key(top) else
+                           tr("相同原预期、依据和动作的组织候选") if top.finding_kind == "cognitive_mismatch" else
+                           tr("独立证据") if len(evs) == 1 else tr("旧记录相似度组织候选；未证明共同根因"),
         )
 
 

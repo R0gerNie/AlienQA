@@ -1,4 +1,6 @@
 """VisualObserver：视觉 LLM 描述变化 + 确定性白屏分。"""
+from alienqa.i18n import language_context, t as tr
+
 import io
 
 from ..llm import LLMClient, LlmRoles
@@ -12,6 +14,10 @@ class VisualObserver:
         self.roles = LlmRoles(client)
 
     def observe(self, before, after, action_desc: str, page_text: str = "") -> VisualObservation:
+        with language_context(self.roles.language):
+            return self._observe(before, after, action_desc, page_text)
+
+    def _observe(self, before, after, action_desc: str, page_text: str = "") -> VisualObservation:
         vo = VisualObservation()
         if before is not None or after is not None:
             raw = self.roles.observe_visual(before, after, action_desc)
@@ -21,14 +27,14 @@ class VisualObserver:
                 if not isinstance(changes, list) or any(
                     not isinstance(change, str) or not change.strip() for change in changes
                 ):
-                    raise ValueError("changes 必须为非空字符串组成的列表")
+                    raise ValueError(tr("changes 必须为非空字符串组成的列表"))
                 if not isinstance(data.get("summary"), str):
-                    raise ValueError("summary 必须为字符串")
+                    raise ValueError(tr("summary 必须为字符串"))
                 vo = VisualObservation.from_dict(data)
                 self.roles.mark_parse("succeeded")
             except (ValueError, TypeError) as exc:
                 self.roles.mark_parse("failed", exc)
-                raise ValueError(f"视觉观察输出无效: {exc}") from exc
+                raise ValueError(tr("视觉观察输出无效: {error}", error=exc)) from exc
         vo.blank_screen_score = blank_screen_score(after if after is not None else before, page_text)
         return vo
 

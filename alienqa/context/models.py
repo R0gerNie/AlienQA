@@ -3,6 +3,8 @@
 ExplorerContext 是"陌生人（裸 LLM）"能看到的唯一上下文包；
 InvestigatorContext 与它严格隔离（11 Investigation Agent 专用）。
 """
+from alienqa.i18n import t as tr
+
 from dataclasses import dataclass, field
 import json
 
@@ -89,19 +91,19 @@ class InvestigatorContext:
     input_status: dict = field(default_factory=dict)
 
     def to_text(self) -> str:
-        sections = [("保存事实", json.dumps(self.evidence_facts, ensure_ascii=False) if self.evidence_facts else "", 3000),
-                    ("动作轨迹", self.action_trace, 1200), ("控制台", self.console, 500),
-                    ("网络", self.network, 500), ("API", self.api, 200),
-                    ("堆栈", self.stack_trace, 500), ("DOM", self.dom, 1500), ("源码", self.source, 3000)]
+        sections = [(tr("保存事实"), json.dumps(self.evidence_facts, ensure_ascii=False) if self.evidence_facts else "", 3000),
+                    (tr("动作轨迹"), self.action_trace, 1200), (tr("控制台"), self.console, 500),
+                    (tr("网络"), self.network, 500), ("API", self.api, 200),
+                    (tr("堆栈"), self.stack_trace, 500), ("DOM", self.dom, 1500), (tr("源码"), self.source, 3000)]
         truncated = [label for label, value, cap in sections if len(value) > cap]
         self.input_status.update(prompt_truncated=bool(truncated), prompt_truncated_sections=truncated,
                                  prompt_budget_chars=11500)
         status = json.dumps(self.input_status, ensure_ascii=False)
         if len(status) > 1000:
             self.input_status["prompt_truncated"] = True
-        parts = ["[调查边界]\n根因和代码位置仅为假设；缺失、未执行与未知不能写成已发生。"
-                 "输入总限 11500 字符，分段有界；截断部分不作为已读取内容。\n" + status[:1000]]
+        parts = [tr("[调查边界]\n根因和代码位置仅为假设；缺失、未执行与未知不能写成已发生。"
+                 "输入总限 11500 字符，分段有界；截断部分不作为已读取内容。\n") + status[:1000]]
         for label, value, cap in sections:
             if value:
-                parts.append(f"[{label}]\n{value[:cap]}" + ("\n[截断：其余内容未送入模型]" if len(value) > cap else ""))
+                parts.append(f"[{label}]\n{value[:cap]}" + (tr("\n[截断：其余内容未送入模型]") if len(value) > cap else ""))
         return "\n\n".join(parts)

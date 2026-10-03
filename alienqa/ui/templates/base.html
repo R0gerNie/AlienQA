@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="zh">
+<html lang="{{ language }}">
 <head>
   <meta charset="utf-8">
-  <title>AlienQA 控制台</title>
+  <title>{{ _('AlienQA 控制台') }}</title>
   <style>
     body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; color: #1f2328; }
     nav { background: #24292f; color: #fff; padding: .6em 1.2em; display: flex; gap: 1.2em; }
@@ -47,9 +47,10 @@
 </head>
 <body>
   <nav>
-    <a href="/" class="{{ 'active' if active == 'run' }}">运行扫描</a>
-    <a href="/history" class="{{ 'active' if active == 'history' }}">历史项目</a>
-    <a href="/settings" class="{{ 'active' if active == 'settings' }}">设置（密钥）</a>
+    <a href="/" class="{{ 'active' if active == 'run' }}">{{ _('运行扫描') }}</a>
+    <a href="/history" class="{{ 'active' if active == 'history' }}">{{ _('历史项目') }}</a>
+    <a href="/settings" class="{{ 'active' if active == 'settings' }}">{{ _('设置（密钥）') }}</a>
+    <span style="margin-left:auto;display:flex;gap:.7em;" aria-label="Language"><a href="{{ language_url('zh') }}" lang="zh" {% if language == 'zh' %}aria-current="true"{% endif %}>中文</a><a href="{{ language_url('en') }}" lang="en" {% if language == 'en' %}aria-current="true"{% endif %}>English</a></span>
   </nav>
   <main>{% block body %}{% endblock %}</main>
 </body>

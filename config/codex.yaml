@@ -2,6 +2,7 @@
 # Six independent role prompts; choose only models available to your account.
 # CLI does not apply temperature/max_tokens; reasoning effort is recorded.
 llm:
+  # language: zh  # Set to en for English model output, UI and reports.
   default_provider: codex
   request_timeout: 120
   codex:

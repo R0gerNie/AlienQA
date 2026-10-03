@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..evidence import Evidence, Severity
+from ..i18n import normalize_language, t
 from ..persistence import atomic_write_json
 from ..run_writer import RunWriter, StorageError, load_snapshot, read_json
 from ..investigation import Investigation
@@ -58,6 +59,7 @@ class RunRecord:
     base_path: str = "/"
     spa_fallback: bool = False
     source_context: dict | None = None
+    language: str = "zh"
 
     def to_dict(self) -> dict:
         return {
@@ -82,12 +84,14 @@ class RunRecord:
             "base_path": self.base_path,
             "spa_fallback": self.spa_fallback,
             "source_context": self.source_context,
+            "language": self.language,
         }
 
     @classmethod
     def from_dict(cls, d: dict) -> "RunRecord":
         return cls(
             id=str(d.get("id") or ""),
+            language=normalize_language(d.get("language") or "zh"),
             project_path=str(d.get("project_path") or ""),
             unit=str(d.get("unit") or ""),
             instructions=str(d.get("instructions") or ""),
@@ -129,7 +133,8 @@ class RunManager:
     @_locked
     def create(self, project_path: str, unit: str = "", entry: str = "index.html", instructions: str = "",
                mode: str = "source", base_url: str = "", storage_state: str = "", app_path: str = "", budget: dict | None = None,
-               browser: str = "chrome", base_path: str = "/", spa_fallback: bool = False) -> RunRecord:
+               browser: str = "chrome", base_path: str = "/", spa_fallback: bool = False, language: str = "zh") -> RunRecord:
+        language = normalize_language(language)
         run_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{_slug(Path(project_path).name)}"
         run_dir = self.root / run_id
         n = 1
@@ -147,7 +152,7 @@ class RunManager:
             mode=mode,
             base_url=base_url,
             storage_state=storage_state, app_path=app_path, budget=budget, browser=browser,
-            base_path=base_path, spa_fallback=spa_fallback,
+            base_path=base_path, spa_fallback=spa_fallback, language=language,
             started_at=time.strftime("%Y-%m-%d %H:%M:%S"),
             status="running",
         )
@@ -194,7 +199,7 @@ class RunManager:
                 try:
                     out.append(self.get(d.name))
                 except Exception:  # noqa: BLE001
-                    out.append(RunRecord(id=d.name, dir=d, status="error", error="run.json 损坏"))
+                    out.append(RunRecord(id=d.name, dir=d, status="error", error=t("run.json 损坏")))
             else:
                 out.append(RunRecord(id=d.name, dir=d, status="unknown"))
         for rec in out:
@@ -247,10 +252,10 @@ class RunManager:
         """Parent-owned optional increment; preserve raw evidence and scan completeness."""
         rec = self.get(run_id)
         if rec is None or rec.status not in TERMINAL_STATUSES:
-            raise ValueError("扫描尚未结束，暂时不能更新调查")
+            raise ValueError(t("扫描尚未结束，暂时不能更新调查"))
         members = {e.id for e in self.load_evidences(run_id) if e.issue_id == result.issue_id}
         if result.evidence_ids and not set(result.evidence_ids).issubset(members):
-            raise ValueError("调查成员与当前 Issue 不一致")
+            raise ValueError(t("调查成员与当前 Issue 不一致"))
         invs = [inv for inv in self.load_investigations(run_id) if inv.issue_id != result.issue_id] + [result]
         self.invalidate_reports(run_id)
         rows = [inv.to_dict() for inv in invs]
@@ -308,9 +313,10 @@ class RunManager:
     def append_terminal_diagnostic(self, run_id, status, error, component="job") -> dict:
         rec = self.get(run_id)
         if rec is None:
-            raise ValueError("run not found")
+            raise ValueError(t("run not found"))
         self.invalidate_reports(run_id)
-        saved = RunWriter(rec.dir, run_id).append_terminal_diagnostic(status, error, component)
+        saved = RunWriter(rec.dir, run_id).append_terminal_diagnostic(status, error, component,
+                                                                   language=rec.language)
         self.invalidate_reports(run_id)
         return saved
 
@@ -351,7 +357,7 @@ class RunManager:
                 if not isinstance(data, dict) or not isinstance(data.get("steps"), list) or not isinstance(data.get("diagnostics"), list):
                     raise StorageError(f"{path}: invalid diagnostics")
                 return {**data, "data_status": "available"}
-            return {"steps": [], "diagnostics": [{"stage": "storage", "error": "未保存扫描诊断，检查完整性未知"}],
+            return {"steps": [], "diagnostics": [{"stage": "storage", "error": t("未保存扫描诊断，检查完整性未知")}],
                     "incomplete": True, "data_status": "absent"}
         except StorageError as exc:
             return {"steps": [], "diagnostics": [{"stage": "storage", "error": str(exc)}],
@@ -394,9 +400,9 @@ class RunManager:
     def load_report_snapshot(self, run_id: str) -> dict:
         rec = self.get(run_id)
         if rec is None:
-            raise ValueError("未找到该扫描")
+            raise ValueError(t("未找到该扫描"))
         if rec.status not in TERMINAL_STATUSES:
-            raise ValueError("扫描尚未结束，暂时无法生成报告")
+            raise ValueError(t("扫描尚未结束，暂时无法生成报告"))
         saved = load_snapshot(rec.dir)
         if saved is None:
             def optional(name, default, expected):
@@ -414,9 +420,9 @@ class RunManager:
             saved = {"evidences": optional("evidences.json", [], list),
                      "investigations": optional("investigations.json", [], list),
                      "scope": optional("unit_scope.json", {}, dict), **diagnostics,
-                     "data_status": "legacy；完整性与提交序号未记录"}
+                     "data_status": t("legacy；完整性与提交序号未记录")}
             saved.setdefault("steps", [])
-            saved.setdefault("diagnostics", [{"stage": "storage", "error": "旧记录缺扫描诊断，完整性未知"}])
+            saved.setdefault("diagnostics", [{"stage": "storage", "error": t("旧记录缺扫描诊断，完整性未知")}])
             saved.setdefault("incomplete", True)
         elif saved["run_id"] != run_id:
             raise StorageError(f"{rec.dir / 'scan.json'}: run identity mismatch")
@@ -424,12 +430,12 @@ class RunManager:
             saved["data_status"] = "available"
         try:
             if any(not isinstance(row, dict) for field in ("evidences", "investigations", "steps", "diagnostics") for row in saved[field]):
-                raise ValueError("scan rows must be objects")
+                raise ValueError(t("scan rows must be objects"))
             if type(saved.get("incomplete")) is not bool or not isinstance(saved.get("scope"), (dict, type(None))):
-                raise ValueError("invalid completeness or scope")
+                raise ValueError(t("invalid completeness or scope"))
             ids = [row.get("id") for row in saved["evidences"]]
             if any(not isinstance(value, str) or not value for value in ids) or len(set(ids)) != len(ids):
-                raise ValueError("invalid evidence IDs")
+                raise ValueError(t("invalid evidence IDs"))
             for row in saved["evidences"]:
                 for key in ("action", "artifacts", "replay"):
                     if key in row and not isinstance(row[key], dict):
@@ -439,7 +445,7 @@ class RunManager:
                         raise ValueError(f"invalid evidence {key}")
             for row in saved["investigations"]:
                 if "technical_evidence" in row and not isinstance(row["technical_evidence"], dict):
-                    raise ValueError("invalid investigation technical_evidence")
+                    raise ValueError(t("invalid investigation technical_evidence"))
             evidences = [Evidence.from_dict(row) for row in saved["evidences"]]
             investigations = [Investigation.from_dict(row, issue_id=row.get("issue_id", "")) for row in saved["investigations"]]
         except (TypeError, ValueError, AttributeError, KeyError) as exc:
@@ -448,7 +454,7 @@ class RunManager:
         diagnostics.extend(s for s in saved["steps"] if s.get("status") in
                            {"failed", "inconclusive", "action_failed", "observation_failed"})
         context = {key: saved[key] for key in ("checkpoint_seq", "phase", "stop_reason", "incomplete", "scope", "steps", "data_status") if key in saved}
-        context.update(run_id=run_id, status=rec.status, input_type=rec.mode, base_url=rec.base_url,
+        context.update(run_id=run_id, language=rec.language, status=rec.status, input_type=rec.mode, base_url=rec.base_url,
                        started_at=rec.started_at, finished_at=rec.finished_at, run_dir=str(rec.dir),
                        replay_results=self.load_replay_results(run_id), budget=rec.budget, access_result=saved.get("access_result"), source_context=rec.source_context)
         return {"evidences": evidences, "state": self.load_review(run_id), "investigations": investigations,

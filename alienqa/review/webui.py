@@ -4,6 +4,8 @@ import threading
 
 from flask import Flask, Response, jsonify, render_template, request, send_file
 
+from ..i18n import get_language, install_flask_i18n, t
+from ..locales.ui import template_labels
 from ..persistence import atomic_write_bytes
 from ..run_writer import StorageError
 from .models import ReviewState
@@ -13,8 +15,14 @@ from .service import (HumanReview, DECISION_LABELS, REPORT_FILES, TERMINAL_STATU
 
 
 def create_app(review: HumanReview, report_builder: ReportBuilder, investigations=None,
-               report_path=None, review_path=None, *, scan_context=None, report_paths=None) -> Flask:
+               report_path=None, review_path=None, *, scan_context=None, report_paths=None,
+               language: str | None = None) -> Flask:
     app = Flask(__name__)
+    config = getattr(getattr(report_builder, "client", None), "config", None)
+    startup_language = language or (scan_context or {}).get("language") or getattr(config, "language", "zh")
+    install_flask_i18n(app, default_language=startup_language,
+                       prefer_default=language is not None or "language" in (scan_context or {}) or startup_language != "zh")
+    app.context_processor(lambda: template_labels(get_language()))
     # Existing embedding API represents completed evidence supplied by its caller.
     context = scan_context if scan_context is not None else {"status": "done", "data_status": "legacy；范围及完整性未记录"}
     directory = context.get("run_dir") or (str(Path(report_path).parent) if report_path else None)
@@ -24,7 +32,7 @@ def create_app(review: HumanReview, report_builder: ReportBuilder, investigation
     if report_paths:
         paths.update({report_mode(mode): Path(path) for mode, path in report_paths.items()})
     if len({path.resolve() for path in paths.values()}) != len(paths):
-        raise ValueError("两种报告必须使用不同路径")
+        raise ValueError(t("两种报告必须使用不同路径"))
     app.config.update(review=review, report_builder=report_builder, evidences=[],
                       investigations=list(investigations or []), report_path=report_path,
                       report_paths=paths, review_path=review_path, diagnostics=[], scan_context=context,
@@ -54,7 +62,7 @@ def create_app(review: HumanReview, report_builder: ReportBuilder, investigation
         try:
             with app.config["review_lock"]:
                 if not any(e.id == evidence_id for e in app.config["evidences"]):
-                    return jsonify({"error": "证据不存在"}), 404
+                    return jsonify({"error": t("证据不存在")}), 404
                 state = ReviewState.from_dict(current_state().to_dict())
                 state.decide(evidence_id, decision, note)
                 # Pre-invalidation prevents a deletion failure from leaving stale
@@ -67,7 +75,7 @@ def create_app(review: HumanReview, report_builder: ReportBuilder, investigation
         except StorageError:
             raise
         except OSError as exc:
-            return jsonify({"error": f"保存决定失败：{exc}"}), 500
+            return jsonify({"error": t("保存决定失败：{error}", error=exc)}), 500
         return jsonify({"ok": True, "evidence_id": evidence_id, "decision": decision.value, "note": note})
 
     @app.route("/report")
@@ -80,9 +88,10 @@ def create_app(review: HumanReview, report_builder: ReportBuilder, investigation
             with app.config["review_lock"]:
                 context = app.config["scan_context"]
                 if context.get("status") not in TERMINAL_STATUSES:
-                    return jsonify({"error": "扫描尚未结束，暂时无法生成报告"}), 409
+                    return jsonify({"error": t("扫描尚未结束，暂时无法生成报告")}), 409
                 result = app.config["report_builder"].build(app.config["evidences"], current_state(),
-                    app.config["investigations"], diagnostics=app.config["diagnostics"], mode=mode, scan_context=context)
+                    app.config["investigations"], diagnostics=app.config["diagnostics"], mode=mode,
+                    scan_context=context, language=get_language())
                 path = app.config["report_paths"].get(mode)
                 download = request.args.get("download") == "1"
                 if path:
@@ -98,7 +107,7 @@ def create_app(review: HumanReview, report_builder: ReportBuilder, investigation
         except ValueError as exc:
             return jsonify({"error": str(exc), "analysis_url": "/report?mode=analysis"}), 409
         except OSError as exc:
-            return jsonify({"error": f"保存报告失败：{exc}"}), 500
+            return jsonify({"error": t("保存报告失败：{error}", error=exc)}), 500
 
     @app.errorhandler(StorageError)
     def storage_error(error):

@@ -1,4 +1,5 @@
 """InvestigationAgent：对 Issue 做专家级调查（可看源码/DOM/技术信号）。"""
+from alienqa.i18n import language_context, t as tr
 from ..context.models import InvestigatorContext
 from ..llm import LLMClient, LlmRoles
 from .context import build_investigator_context
@@ -11,10 +12,14 @@ class InvestigationAgent:
         self.roles = LlmRoles(client)
 
     def investigate(self, issue, expert_ctx: InvestigatorContext) -> Investigation:
+        with language_context(self.roles.language):
+            return self._investigate(issue, expert_ctx)
+
+    def _investigate(self, issue, expert_ctx: InvestigatorContext) -> Investigation:
         """契约入口：issue + 专家上下文 → Investigation。"""
         text = expert_ctx.to_text() if isinstance(expert_ctx, InvestigatorContext) else str(expert_ctx)
         issue_id = getattr(issue, "id", "") or ""
-        text = f"问题 {issue_id}：{getattr(issue, 'title', '')}\n\n{text}"
+        text = tr("问题 {id}：{title}\n\n{text}", id=issue_id, title=getattr(issue, "title", ""), text=text)
         error = ""
         for repair in (False, True):
             try:
@@ -30,6 +35,10 @@ class InvestigationAgent:
         return Investigation(issue_id=issue_id, status="failed", error=error)
 
     def investigate_issue(self, project, issue, evidences, driver=None) -> Investigation:
+        with language_context(self.roles.language):
+            return self._investigate_issue(project, issue, evidences, driver)
+
+    def _investigate_issue(self, project, issue, evidences, driver=None) -> Investigation:
         """便捷入口：先组装专家上下文再调查。"""
         try:
             ctx = build_investigator_context(project, issue, evidences, driver)

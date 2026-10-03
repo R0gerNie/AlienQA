@@ -1,4 +1,6 @@
 """源码检索：按 Issue/Evidence 关键词过滤 visible_files。"""
+from alienqa.i18n import t as tr
+
 import re
 from pathlib import Path
 
@@ -27,14 +29,14 @@ def retrieve_source(project, issue, evidences=None) -> str:
         content = _read(root, f)
         if not content:
             continue
-        limit = "（截断：只取前 500 字符）" if len(content) > 500 else "（完整小片段）"
+        limit = tr("（截断：只取前 500 字符）") if len(content) > 500 else tr("（完整小片段）")
         block = f"### {f.path} {limit}\n{content[:500]}\n"
         if total + len(block) > _MAX_SOURCE_CHARS:
             break
         blocks.append(block)
         total += len(block)
-    return ("检索限制：所选应用根目录内最多 20 文件，每文件 500 字符，总计 12000 字符；"
-            "路径/关键词或角色回退，不证明覆盖全部源码。\n" + "\n".join(blocks)) if blocks else ""
+    return (tr("检索限制：所选应用根目录内最多 20 文件，每文件 500 字符，总计 12000 字符；"
+            "路径/关键词或角色回退，不证明覆盖全部源码。\n") + "\n".join(blocks)) if blocks else ""
 
 
 def _keywords(issue, evidences) -> set:

@@ -1,100 +1,100 @@
 {% extends "base.html" %}
 {% block body %}
-<h1>扫描 <code>{{ rec.id }}</code></h1>
+<h1>{{ _('扫描') }} <code>{{ rec.id }}</code></h1>
 <table>
-  <tr><th>项目路径</th><td>{{ rec.project_path or '—' }}</td></tr>
-  <tr><th>扫描方式 / 地址</th><td>{{ rec.mode }} / {{ rec.base_url or '—' }}</td></tr>
-  <tr><th>测试单元</th><td>{{ rec.unit or '—' }}</td></tr>
-  <tr><th>单元指令</th><td>{{ rec.instructions or '—' }}</td></tr>
-  <tr><th>入口文件（自动识别）</th><td>{{ rec.entry or '—' }}</td></tr>
-  <tr><th>状态</th><td><span class="badge {{ rec.status }}">{{ rec.status }}</span></td></tr>
-  <tr><th>开始 / 结束</th><td>{{ rec.started_at }} / {{ rec.finished_at or '—' }}</td></tr>
-  <tr><th>证据 / Issue / 采信</th><td>{{ progress.evidence_count if progress.evidence_count is defined else '未记录' }} / {{ progress.issue_count if progress.issue_count is defined else '未记录' }} / {{ progress.confirmed if progress.confirmed is defined else '未记录' }}</td></tr>
-  <tr><th>数据读取 / 最后阶段 / 停止原因</th><td>{{ progress.data_status }} / {{ progress.last_stage or '未记录' }}（{{ progress.phase or '未记录' }}） / {{ progress.stop_reason or '未记录' }}（提交 {{ progress.checkpoint_seq or '未记录' }}）</td></tr>
-  <tr><th>预算</th><td>{{ rec.budget | tojson if rec.budget else '旧记录未记录' }}</td></tr>
-  <tr><th>实际尝试 / 执行完成 / 有效认知判定</th><td>{{ progress.attempts if progress.attempts is defined else '未记录' }} / {{ progress.executions if progress.executions is defined else '未记录' }} / {{ progress.cognitive_completed if progress.cognitive_completed is defined else '未记录' }}</td></tr>
-  <tr><th>技术异常 / 认知落差 / 待处理 / 采信</th><td>{{ progress.technical_findings if progress.technical_findings is defined else '未记录' }} / {{ progress.cognitive_findings if progress.cognitive_findings is defined else '未记录' }} / {{ progress.pending if progress.pending is defined else '未记录' }} / {{ progress.confirmed if progress.confirmed is defined else '未记录' }}</td></tr>
-  <tr><th>一般用户预期版本</th><td>{{ progress.prompt_versions | join(', ') if progress.prompt_versions else '未记录' }}</td></tr>
-  {% if progress.access_result %}<tr><th>页面访问结果</th><td>{{ progress.access_result | tojson }}；登录状态仍需核对，文件存在不代表已进入业务页面。</td></tr>{% endif %}
-  {% if rec.error %}<tr><th>错误</th><td style="color:#cf222e;">{{ rec.error }}</td></tr>{% endif %}
+  <tr><th>{{ _('项目路径') }}</th><td>{{ rec.project_path or '—' }}</td></tr>
+  <tr><th>{{ _('扫描方式 / 地址') }}</th><td>{{ rec.mode }} / {{ rec.base_url or '—' }}</td></tr>
+  <tr><th>{{ _('测试单元') }}</th><td>{{ rec.unit or '—' }}</td></tr>
+  <tr><th>{{ _('单元指令') }}</th><td>{{ rec.instructions or '—' }}</td></tr>
+  <tr><th>{{ _('入口文件（自动识别）') }}</th><td>{{ rec.entry or '—' }}</td></tr>
+  <tr><th>{{ _('状态') }}</th><td><span class="badge {{ rec.status }}">{{ status_labels.get(rec.status, rec.status) }}</span></td></tr>
+  <tr><th>{{ _('开始 / 结束') }}</th><td>{{ rec.started_at }} / {{ rec.finished_at or '—' }}</td></tr>
+  <tr><th>{{ _('证据 / Issue / 采信') }}</th><td>{{ progress.evidence_count if progress.evidence_count is defined else _('未记录') }} / {{ progress.issue_count if progress.issue_count is defined else _('未记录') }} / {{ progress.confirmed if progress.confirmed is defined else _('未记录') }}</td></tr>
+  <tr><th>{{ _('数据读取 / 最后阶段 / 停止原因') }}</th><td>{{ status_labels.get(progress.data_status, progress.data_status) }} / {{ phase_labels.get(progress.last_stage, progress.last_stage) or _('未记录') }}{{ _('（') }}{{ phase_labels.get(progress.phase, progress.phase) or _('未记录') }}{{ _('）') }} / {{ status_labels.get(progress.stop_reason, progress.stop_reason) or _('未记录') }}{{ _('（') }}{{ _('提交') }} {{ progress.checkpoint_seq or _('未记录') }}{{ _('）') }}</td></tr>
+  <tr><th>{{ _('预算') }}</th><td>{{ rec.budget | tojson if rec.budget else _('旧记录未记录') }}</td></tr>
+  <tr><th>{{ _('实际尝试 / 执行完成 / 有效认知判定') }}</th><td>{{ progress.attempts if progress.attempts is defined else _('未记录') }} / {{ progress.executions if progress.executions is defined else _('未记录') }} / {{ progress.cognitive_completed if progress.cognitive_completed is defined else _('未记录') }}</td></tr>
+  <tr><th>{{ _('技术异常 / 认知落差 / 待处理 / 采信') }}</th><td>{{ progress.technical_findings if progress.technical_findings is defined else _('未记录') }} / {{ progress.cognitive_findings if progress.cognitive_findings is defined else _('未记录') }} / {{ progress.pending if progress.pending is defined else _('未记录') }} / {{ progress.confirmed if progress.confirmed is defined else _('未记录') }}</td></tr>
+  <tr><th>{{ _('一般用户预期版本') }}</th><td>{{ progress.prompt_versions | join(', ') if progress.prompt_versions else _('未记录') }}</td></tr>
+  {% if progress.access_result %}<tr><th>{{ _('页面访问结果') }}</th><td>{{ progress.access_result | tojson }}{{ _('；登录状态仍需核对，文件存在不代表已进入业务页面。') }}</td></tr>{% endif %}
+  {% if rec.error %}<tr><th>{{ _('错误') }}</th><td style="color:#cf222e;">{{ rec.error }}</td></tr>{% endif %}
 </table>
 
 {% if rec.source_context %}
-<details><summary>所选应用、路由提示与运行条件</summary>
-<p>路由模板和框架默认端口只用于定位提示，不代表访问覆盖。识别限制和实际服务条件记录如下。</p>
+<details><summary>{{ _('所选应用、路由提示与运行条件') }}</summary>
+<p>{{ _('路由模板和框架默认端口只用于定位提示，不代表访问覆盖。识别限制和实际服务条件记录如下。') }}</p>
 <pre>{{ rec.source_context | tojson(indent=2) }}</pre></details>
 {% endif %}
 
 {% if rec.status == 'running' %}
-<p><button id="stop-run">停止扫描</button> <span id="stop-status"></span></p>
+<p><button id="stop-run">{{ _('停止扫描') }}</button> <span id="stop-status"></span></p>
 <script>
 document.getElementById('stop-run').onclick = async function () {
   this.disabled = true;
   const response = await fetch('/api/run/{{ rec.id }}/stop', {method: 'POST'});
   const body = await response.json();
-  document.getElementById('stop-status').textContent = response.ok ? '正在停止任务与浏览器…' : body.error;
+  document.getElementById('stop-status').textContent = response.ok ? {{ _('正在停止任务与浏览器…') | tojson }} : body.error;
 };
 setTimeout(() => location.reload(), 3000);
 </script>
 {% endif %}
 
-{% if progress.data_status != "available" %}<p class="badge partial">扫描数据 {{ progress.data_status }}：{{ progress.error or "未记录完整检查结果" }}</p>{% endif %}
+{% if progress.data_status != "available" %}<p class="badge partial">{{ _('扫描数据') }} {{ status_labels.get(progress.data_status, progress.data_status) }}{{ _('：') }}{{ progress.error or _('未记录完整检查结果') }}</p>{% endif %}
 {% if diagnostics.incomplete %}
-<p class="badge partial">本次扫描有失败或无法判断的步骤，结果不足以证明页面没有问题。</p>
+<p class="badge partial">{{ _('本次扫描有失败或无法判断的步骤，结果不足以证明页面没有问题。') }}</p>
 {% endif %}
 {% if diagnostics.diagnostics %}
-<h2>运行诊断</h2>
-<ul>{% for item in diagnostics.diagnostics %}<li>{{ item.stage or item.component or '扫描' }}：{{ item.error or item.message or item.status }}</li>{% endfor %}</ul>
+<h2>{{ _('运行诊断') }}</h2>
+<ul>{% for item in diagnostics.diagnostics %}<li>{{ phase_labels.get(item.stage, item.stage) or item.component or _('扫描') }}{{ _('：') }}{{ item.error or item.message or status_labels.get(item.status, item.status) }}</li>{% endfor %}</ul>
 {% endif %}
 {% if diagnostics.steps %}
-<h2>探索步骤</h2>
-<table><tr><th>动作</th><th>执行</th><th>认知检查</th><th>错误 / 无法判断原因</th></tr>
-{% for step in diagnostics.steps %}<tr><td>{{ step.action or '—' }}</td><td>{{ step.execution_status or '旧记录未记录' }}</td><td>{{ step.cognitive_status or step.status }}</td><td>{{ step.error or '—' }}</td></tr>{% endfor %}
+<h2>{{ _('探索步骤') }}</h2>
+<table><tr><th>{{ _('动作') }}</th><th>{{ _('执行') }}</th><th>{{ _('认知检查') }}</th><th>{{ _('错误 / 无法判断原因') }}</th></tr>
+{% for step in diagnostics.steps %}<tr><td>{{ step.action or '—' }}</td><td>{{ status_labels.get(step.execution_status, step.execution_status) or _('旧记录未记录') }}</td><td>{{ status_labels.get(step.cognitive_status or step.status, step.cognitive_status or step.status) }}</td><td>{{ step.error or '—' }}</td></tr>{% endfor %}
 </table>
 {% for step in diagnostics.steps %}
 {% set generation = step.get('expectation_generation', {}) %}
 <div class="cognitive-generation">
-<p><strong>{{ step.step_id or '旧记录未记录步骤' }}</strong> · 检查覆盖：{{ generation.get('coverage', '未记录') }} · 局部判定：{{ step.get('judgment_result', {}).get('status', '未记录') }}</p>
+<p><strong>{{ step.step_id or _('旧记录未记录步骤') }}</strong> · {{ _('检查覆盖：') }}{{ status_labels.get(generation.get('coverage'), generation.get('coverage', _('未记录'))) }} · {{ _('局部判定：') }}{{ status_labels.get(step.get('judgment_result', {}).get('status'), step.get('judgment_result', {}).get('status', _('未记录'))) }}</p>
 {% if step.get('execution') or step.get('interaction_coverage') %}
-<details><summary>动作定位、观察窗口与交互覆盖</summary><pre>{{ {'execution': step.get('execution', {}), 'coverage': step.get('interaction_coverage', {}), 'trajectory': step.get('trajectory', {})} | tojson(indent=2) }}</pre></details>
+<details><summary>{{ _('动作定位、观察窗口与交互覆盖') }}</summary><pre>{{ {'execution': step.get('execution', {}), 'coverage': step.get('interaction_coverage', {}), 'trajectory': step.get('trajectory', {})} | tojson(indent=2) }}</pre></details>
 {% endif %}
-{% if generation.get('coverage') == 'partial' %}<p class="badge partial">部分要求仍未决，局部判定不代表完整通过。</p>{% endif %}
-{% if step.get('judgment_result', {}).get('unverifiable_expectation_ids') %}<p>另有无法判断的要求：{{ step.judgment_result.unverifiable_expectation_ids | join('、') }}；已产生的落差仍保留。</p>{% endif %}
+{% if generation.get('coverage') == 'partial' %}<p class="badge partial">{{ _('部分要求仍未决，局部判定不代表完整通过。') }}</p>{% endif %}
+{% if step.get('judgment_result', {}).get('unverifiable_expectation_ids') %}<p>{{ _('另有无法判断的要求：') }}{{ step.judgment_result.unverifiable_expectation_ids | join(_('、')) }}{{ _('；已产生的落差仍保留。') }}</p>{% endif %}
 {% set sampling = generation.get('sampling', {}) %}
-{% if sampling %}<p>采样：{{ sampling.get('returned', 0) }} / {{ sampling.requested }} 已返回；{{ sampling.get('validated', 0) }} / {{ sampling.requested }} 已验证；完成：{{ '是' if sampling.get('complete') else '否' }}</p>
-{% else %}<p>旧记录：采样完成情况未记录。</p>{% endif %}
-<details><summary>事前采样要求与未决原因</summary>
-{% for item in generation.get('empty_samples', []) %}<p>采样 {{ item.sample_index }} 未提出预期：{{ item.reason or '原因未记录' }}（{{ item.code }}）</p>{% endfor %}
+{% if sampling %}<p>{{ _('采样：{returned} / {requested} 已返回；{validated} / {requested} 已验证；完成：{complete}').format(returned=sampling.get('returned', 0), requested=sampling.requested, validated=sampling.get('validated', 0), complete=_('是') if sampling.get('complete') else _('否')) }}</p>
+{% else %}<p>{{ _('旧记录：采样完成情况未记录。') }}</p>{% endif %}
+<details><summary>{{ _('事前采样要求与未决原因') }}</summary>
+{% for item in generation.get('empty_samples', []) %}<p>{{ _('采样 {sample} 未提出预期：{reason}（{code}）').format(sample=item.sample_index, reason=item.reason or _('原因未记录'), code=item.code) }}</p>{% endfor %}
 {% for group in generation.get('groups', []) %}
-<p>{{ group.text }} · {{ '已接纳' if group.decision == 'accepted' else '未决' if group.decision == 'unresolved' else '未交付' }} · {{ group.reason }}</p>
-<ul>{% for member in group.members %}<li>采样 {{ member.sample_index }} / 条目 {{ member.row_index }}：{{ member.text }}（{{ member.expectation_basis.type }}：{{ member.expectation_basis.reference }}）</li>{% endfor %}</ul>
+<p>{{ group.text }} · {{ _('已接纳') if group.decision == 'accepted' else _('未决') if group.decision == 'unresolved' else _('未交付') }} · {{ group.reason }}</p>
+<ul>{% for member in group.members %}<li>{{ _('采样 {sample} / 条目 {row}：{text}（{type}：{reference}）').format(sample=member.sample_index, row=member.row_index, text=member.text, type=member.expectation_basis.type, reference=member.expectation_basis.reference) }}</li>{% endfor %}</ul>
 {% endfor %}
-{% for item in generation.get('unresolved', []) %}<p>未决：{{ item.reason }}</p><ul>{% for text in item.texts %}<li>{{ text }}</li>{% endfor %}</ul>{% endfor %}
-{% for item in generation.get('relationship_warnings', []) %}<p>采样关系备注：{{ item.reason }}</p><ul>{% for text in item.texts %}<li>{{ text }}</li>{% endfor %}</ul>{% endfor %}
+{% for item in generation.get('unresolved', []) %}<p>{{ _('未决：') }}{{ item.reason }}</p><ul>{% for text in item.texts %}<li>{{ text }}</li>{% endfor %}</ul>{% endfor %}
+{% for item in generation.get('relationship_warnings', []) %}<p>{{ _('采样关系备注：') }}{{ item.reason }}</p><ul>{% for text in item.texts %}<li>{{ text }}</li>{% endfor %}</ul>{% endfor %}
 {% if generation.error %}<p>{{ generation.error }}</p>{% endif %}
-<pre>{{ {'merge_version': generation.get('merge_version', '未记录'), 'error_code': generation.get('error_code', '')} | tojson(indent=2) }}</pre></details>
+<pre>{{ {'merge_version': generation.get('merge_version', _('未记录')), 'error_code': generation.get('error_code', '')} | tojson(indent=2) }}</pre></details>
 </div>
 {% endfor %}
 {% endif %}
 
-<h2>LLM 调用与用量</h2>
-<p class="muted">已知小计与未知费用分开；仅有动作/时间预算，停止本地任务不保证供应商停止计费。</p>
-{% if not usage.scan_accounting_recorded %}<p>扫描调用账目未记录；已有条目不能代表完整扫描费用。</p>{% endif %}
-{% if usage.data_status == 'absent' %}<p>未记录调用账目，费用未知。</p>{% endif %}
-{% if usage.data_status in ['corrupt', 'storage_failed'] %}<p class="badge partial">计量不完整：{{ usage.error or usage.errors }}</p>{% endif %}
-<details id="llm-usage" open><summary>调用 / 用量 / 费用明细汇总</summary><pre>{{ usage | tojson(indent=2) }}</pre></details>
+<h2>{{ _('LLM 调用与用量') }}</h2>
+<p class="muted">{{ _('已知小计与未知费用分开；仅有动作/时间预算，停止本地任务不保证供应商停止计费。') }}</p>
+{% if not usage.scan_accounting_recorded %}<p>{{ _('扫描调用账目未记录；已有条目不能代表完整扫描费用。') }}</p>{% endif %}
+{% if usage.data_status == 'absent' %}<p>{{ _('未记录调用账目，费用未知。') }}</p>{% endif %}
+{% if usage.data_status in ['corrupt', 'storage_failed'] %}<p class="badge partial">{{ _('计量不完整：') }}{{ usage.error or usage.errors }}</p>{% endif %}
+<details id="llm-usage" open><summary>{{ _('调用 / 用量 / 费用明细汇总') }}</summary><pre>{{ usage | tojson(indent=2) }}</pre></details>
 
 {% if scope %}
-<h2>单元定位结果</h2>
-<p>{{ scope.summary or '（已定位，无摘要）' }}</p>
-{% if scope.selectors %}<p class="muted">命中 selector：{% for s in scope.selectors %}<code>{{ s }}</code> {% endfor %}</p>{% endif %}
-{% if scope.keywords %}<p class="muted">关键词：{% for k in scope.keywords %}<code>{{ k }}</code> {% endfor %}</p>{% endif %}
+<h2>{{ _('单元定位结果') }}</h2>
+<p>{{ scope.summary or _('（已定位，无摘要）') }}</p>
+{% if scope.selectors %}<p class="muted">{{ _('命中 selector：') }}{% for s in scope.selectors %}<code>{{ s }}</code> {% endfor %}</p>{% endif %}
+{% if scope.keywords %}<p class="muted">{{ _('关键词：') }}{% for k in scope.keywords %}<code>{{ k }}</code> {% endfor %}</p>{% endif %}
 {% endif %}
 
 {% if rec.status in ['done', 'partial', 'error', 'timeout', 'cancelled'] %}
-<p><a href="/runs/{{ rec.id }}/report?mode=analysis">{{ '查看' if analysis_exists else '生成' }} QA 与用户认知分析</a> · <a href="/runs/{{ rec.id }}/report?mode=analysis&download=1">下载分析</a></p>
-<p><a href="/runs/{{ rec.id }}/report?mode=confirmed">{{ '查看' if report_exists else '生成' }}确认问题报告</a> · <a href="/runs/{{ rec.id }}/report?mode=confirmed&download=1">下载确认问题报告</a></p>
-{% if review_ready %}<p><a href="/runs/{{ rec.id }}/review">处理发现与备注</a></p>{% endif %}
-{% elif rec.status == 'running' %}<p class="muted">扫描中，完成后进入分析与审核…</p>{% endif %}
-<p><a href="/history">← 返回历史</a></p>
+<p><a href="/runs/{{ rec.id }}/report?mode=analysis">{{ _('查看 QA 与用户认知分析') if analysis_exists else _('生成 QA 与用户认知分析') }}</a> · <a href="/runs/{{ rec.id }}/report?mode=analysis&download=1">{{ _('下载分析') }}</a></p>
+<p><a href="/runs/{{ rec.id }}/report?mode=confirmed">{{ _('查看确认问题报告') if report_exists else _('生成确认问题报告') }}</a> · <a href="/runs/{{ rec.id }}/report?mode=confirmed&download=1">{{ _('下载确认问题报告') }}</a></p>
+{% if review_ready %}<p><a href="/runs/{{ rec.id }}/review">{{ _('处理发现与备注') }}</a></p>{% endif %}
+{% elif rec.status == 'running' %}<p class="muted">{{ _('扫描中，完成后进入分析与审核…') }}</p>{% endif %}
+<p><a href="/history">{{ _('← 返回历史') }}</a></p>
 {% endblock %}

@@ -33,14 +33,15 @@ from .planner import ActionPlanner, ExploreBudget
 from .llm.metering import MeteringSink
 from .review import Decision, HumanReview, Report, ReportBuilder, ReviewState
 from .state import StateTracker
+from .i18n import language_context, normalize_language, t as tr
 
 
-def _join_focus(unit: str, instructions: str) -> str:
+def _join_focus(unit: str, instructions: str, language=None) -> str:
     parts = []
     if unit:
-        parts.append(f"单元：{unit}")
+        parts.append(tr("单元：{unit}", language, unit=unit))
     if instructions:
-        parts.append(f"指令：{instructions}")
+        parts.append(tr("指令：{instructions}", language, instructions=instructions))
     return "\n".join(parts)
 
 
@@ -61,6 +62,7 @@ class PipelineResult:
     raw_refs: list[dict] = field(default_factory=list)
     run_dir: str = ""
     access_result: dict | None = None
+    language: str = "zh"
 
     @property
     def html(self) -> str:
@@ -85,7 +87,8 @@ class PipelineResult:
         writer.checkpoint(phase="terminal", steps=self.steps, evidences=self.evidences,
                           diagnostics=self.diagnostics, raw_refs=self.raw_refs,
                           investigations=self.investigations, stop_reason=self.stop_reason,
-                          scope=asdict(self.scope) if self.scope else None, issues=self.issues, access_result=self.access_result)
+                          scope={**asdict(self.scope), "language": self.language} if self.scope else None,
+                          issues=self.issues, access_result=self.access_result, language=self.language)
 
 
 class AlienQAPipeline:
@@ -120,8 +123,9 @@ class AlienQAPipeline:
         run_dir: str | Path | None = None,
         run_id: str | None = None,
     ):
+        self.language = normalize_language(getattr(config, "language", "zh"))
         if max_actions < 1 or max_seconds <= 0 or samples < 1:
-            raise ValueError("动作数、采样次数及时间预算必须大于零")
+            raise ValueError(tr("动作数、采样次数及时间预算必须大于零", self.language))
         self.client = LLMClient(config)
         self.samples = samples
         self.headless = headless
@@ -130,7 +134,7 @@ class AlienQAPipeline:
         self.auto_confirm = auto_confirm
         self.unit = unit
         self.instructions = instructions
-        self.focus = focus or _join_focus(unit, instructions)
+        self.focus = focus or _join_focus(unit, instructions, self.language)
         self.verbose = verbose
         self.browser = browser
         self.max_seconds = max_seconds
@@ -142,12 +146,16 @@ class AlienQAPipeline:
             print(msg, flush=True)
 
     def collect(self, project: Project) -> PipelineResult:
+        with language_context(self.language):
+            return self._collect(project)
+
+    def _collect(self, project: Project) -> PipelineResult:
         """Collect into one run-local, incrementally committed scan."""
         directory = Path(self.run_dir or self.artifacts_dir or tempfile.mkdtemp(prefix="alienqa_"))
         self._writer = RunWriter(directory, self.run_id)
         if self._writer.seq:
-            raise ValueError("结果目录已有扫描，请为新 run 使用新的目录")
-        self._result = PipelineResult(run_id=self._writer.run_id, run_dir=str(directory))
+            raise ValueError(tr("结果目录已有扫描，请为新 run 使用新的目录"))
+        self._result = PipelineResult(run_id=self._writer.run_id, run_dir=str(directory), language=self.language)
         if isinstance(self.client, LLMClient):
             self.client.sink = MeteringSink(directory, self._writer.run_id)
             self.client.on_metering_error = lambda message: self._diagnostic("metering", message)
@@ -181,7 +189,8 @@ class AlienQAPipeline:
         self._writer.checkpoint(phase=phase, steps=result.steps, evidences=result.evidences,
                                 diagnostics=result.diagnostics, raw_refs=result.raw_refs,
                                 investigations=result.investigations, stop_reason=result.stop_reason,
-                                scope=asdict(result.scope) if result.scope else None, issues=result.issues, access_result=result.access_result)
+                                scope={**asdict(result.scope), "language": self.language} if result.scope else None,
+                                issues=result.issues, access_result=result.access_result, language=self.language)
         if isinstance(self.client, LLMClient):
             step = result.steps[-1] if result.steps and phase in {"expectation", "visual", "judgment", "action", "raw_capture"} else {}
             ref = f"scan.json#steps/{step['step_id']}" if step else "scan.json"
@@ -218,7 +227,7 @@ class AlienQAPipeline:
                 step["raw_refs"] = [ref]
                 step["source_record_ids"] = ref["record_ids"]
             if runtime.window.get("dropped_count"):
-                self._diagnostic("runtime", f"原始事件超过上限，丢弃 {runtime.window['dropped_count']} 条", step)
+                self._diagnostic("runtime", tr("原始事件超过上限，丢弃 {count} 条", count=runtime.window["dropped_count"]), step)
             self._checkpoint("raw_capture" if phase == "action" else phase)
             evs = self._evidence.build_technical(runtime, action, state, driver, before_state=state,
                                                  run_id=self._writer.run_id,
@@ -277,17 +286,21 @@ class AlienQAPipeline:
 
     def _map_from_browser(self, driver, project) -> ProductMap:
         """02b：用浏览器可见文字建立产品地图（黑盒，无源码）。"""
-        self._log("[02b] 读取浏览器可见文字…")
+        self._log(tr("[02b] 读取浏览器可见文字…"))
         surface = (driver.visible_text() or "").strip()
         if not surface:
-            self._log("[02b] 页面无可见文字，返回空 ProductMap")
+            self._log(tr("[02b] 页面无可见文字，返回空 ProductMap"))
             return ProductMap()
         pm = ProductMapper(self.client).map_from_browser(project, surface)
-        self._log(f"[02b] 主旨: {pm.brief[:160]}")
-        self._log(f"[02b] 功能区域: {len(pm.areas)} 个")
+        self._log(tr("[02b] 主旨: {brief}", brief=pm.brief[:160]))
+        self._log(tr("[02b] 功能区域: {count} 个", count=len(pm.areas)))
         return pm
 
     def run(self, project: Project, output_path: str | Path | None = None) -> PipelineResult:
+        with language_context(self.language):
+            return self._run(project, output_path)
+
+    def _run(self, project: Project, output_path: str | Path | None = None) -> PipelineResult:
         """01→12：collect 之后按 auto_confirm 采信，再生成最终报告。"""
         result = self.collect(project)
         if result.run_dir:
@@ -295,18 +308,18 @@ class AlienQAPipeline:
         review = HumanReview(ReviewState())
         if self.auto_confirm:
             for ev in result.evidences:
-                review.decide(ev.id, Decision.CONFIRMED, "CLI 自动采信")
+                review.decide(ev.id, Decision.CONFIRMED, tr("CLI 自动采信"))
         elif result.evidences:
-            self._log("[12] 证据待人工审核；未生成正式报告")
+            self._log(tr("[12] 证据待人工审核；未生成正式报告"))
             return result
-        self._log("[12] 生成 HTML 报告中…")
+        self._log(tr("[12] 生成 HTML 报告中…"))
         report = ReportBuilder(self.client).build(
             result.evidences, review.state, result.investigations,
-            diagnostics=result.review_diagnostics,
+            diagnostics=result.review_diagnostics, language=self.language,
         )
         if output_path:
             Path(output_path).write_text(report.html, encoding="utf-8")
-            self._log(f"[12] 报告已写入 {output_path}（采信 {report.accepted_count}/{report.total_count}）")
+            self._log(tr("[12] 报告已写入 {path}（采信 {accepted}/{total}）", path=output_path, accepted=report.accepted_count, total=report.total_count))
         result.report = report
         return result
 
@@ -334,7 +347,7 @@ class AlienQAPipeline:
                 scope = None
             result.scope = scope
             if scope is None or scope.is_empty():
-                self._diagnostic("unit_locator", "未定位到指定单元，未扩大为全量扫描")
+                self._diagnostic("unit_locator", tr("未定位到指定单元，未扩大为全量扫描"))
                 result.stop_reason = "scope_not_found"
                 self._checkpoint("terminal")
                 return result
@@ -355,17 +368,17 @@ class AlienQAPipeline:
                 coverage["input_constraints"] = deepcopy(input_diagnostics)
             warnings = []
             if input_diagnostics:
-                warnings.append("部分输入约束无法构造合法样本，相关提交路径未验证")
+                warnings.append(tr("部分输入约束无法构造合法样本，相关提交路径未验证"))
             if coverage.get("truncated"):
-                warnings.append("可交互控件枚举已截断，剩余区域未检查")
+                warnings.append(tr("可交互控件枚举已截断，剩余区域未检查"))
             if coverage.get("frames"):
-                warnings.append("frame 内容未访问，不计为已覆盖")
+                warnings.append(tr("frame 内容未访问，不计为已覆盖"))
             if coverage.get("shadow", {}).get("open_roots"):
-                warnings.append("shadow 内容的枚举、状态与回放尚未验证")
+                warnings.append(tr("shadow 内容的枚举、状态与回放尚未验证"))
             if coverage.get("ambiguous_modal"):
-                warnings.append("多个可见 modal 无法确定活动层，未继续操作")
+                warnings.append(tr("多个可见 modal 无法确定活动层，未继续操作"))
             if coverage.get("detached_or_skipped"):
-                warnings.append("部分控件已消失或无法读取，覆盖不完整")
+                warnings.append(tr("部分控件已消失或无法读取，覆盖不完整"))
             for warning in warnings:
                 if warning not in coverage_warnings:
                     self._diagnostic("interaction_coverage", warning)
@@ -376,9 +389,9 @@ class AlienQAPipeline:
             if action is None:
                 result.stop_reason = "no_candidates"
                 if coverage.get("modal_active") and coverage.get("enumerated") == 0:
-                    self._diagnostic("interaction_coverage", "可见 modal 中没有可识别的操作控件，未继续操作背景")
+                    self._diagnostic("interaction_coverage", tr("可见 modal 中没有可识别的操作控件，未继续操作背景"))
                 if not result.steps:
-                    self._diagnostic("exploration", "未执行任何可交互动作，无法判断交互质量")
+                    self._diagnostic("exploration", tr("未执行任何可交互动作，无法判断交互质量"))
                 break
             before_state = state
             action_key = (state.id, json.dumps(asdict(action), sort_keys=True, ensure_ascii=False))
@@ -409,9 +422,9 @@ class AlienQAPipeline:
                 expectations = exp_engine.expect(ctx, page_info, action=action)
                 step["expectations"] = [asdict(e) if is_dataclass(e) else {"text": str(e)} for e in expectations]
                 if not expectations:
-                    raise JudgmentError("未形成可检查的事前预期，认知检查未完成", status="inconclusive")
+                    raise JudgmentError(tr("未形成可检查的事前预期，认知检查未完成"), status="inconclusive")
                 if not all(valid_basis(getattr(e, "expectation_basis", None)) for e in expectations):
-                    raise ValueError("事前预期缺少有效依据，认知检查未完成")
+                    raise ValueError(tr("事前预期缺少有效依据，认知检查未完成"))
                 step["phases"]["expectation"] = "completed"
             except StorageError:
                 raise
@@ -419,14 +432,14 @@ class AlienQAPipeline:
                 step.update(status=exc.status, cognitive_status=exc.status, error=exc.error)
                 step["phases"]["expectation"] = exc.status
             except Exception as exc:
-                step.update(status="failed", cognitive_status="failed", error=f"预期生成失败：{exc}")
+                step.update(status="failed", cognitive_status="failed", error=tr("预期生成失败：{error}", error=exc))
                 step["phases"]["expectation"] = "failed"
             finally:
                 if hasattr(exp_engine, "last_generation"):
                     step["expectation_generation"] = deepcopy(exp_engine.last_generation)
             self._checkpoint("expectation")
             if time.monotonic() >= deadline:
-                step.update(status="inconclusive", cognitive_status="inconclusive", error="动作前运行时间预算耗尽")
+                step.update(status="inconclusive", cognitive_status="inconclusive", error=tr("动作前运行时间预算耗尽"))
                 step["phases"]["action"] = "not_started"
                 result.stop_reason = "time_budget"
                 break
@@ -445,13 +458,13 @@ class AlienQAPipeline:
                 if isinstance(execution, dict):
                     step["execution"] = deepcopy(execution)
                     if execution.get("status") in {"input_rejected", "input_unverified"}:
-                        raise RuntimeError("填值未被控件接受或无法验证，未将后续提交视为成功")
+                        raise RuntimeError(tr("填值未被控件接受或无法验证，未将后续提交视为成功"))
                 step["execution_status"] = "completed"
                 step["phases"]["action"] = "completed"
                 planner.record_result(action, before_state.id, True)
                 if isinstance(execution, dict) and execution.get("wait", {}).get("status") in {"timeout", "failed"}:
                     step.update(status="inconclusive", cognitive_status="inconclusive",
-                                error="动作已发出，观察窗口未稳定或读取失败，认知结果未判断")
+                                error=tr("动作已发出，观察窗口未稳定或读取失败，认知结果未判断"))
             except StorageError:
                 raise
             except Exception as exc:
@@ -501,7 +514,7 @@ class AlienQAPipeline:
             if step["cognitive_status"] != "pending" or step["execution_status"] != "completed":
                 continue
             if before_img is None or after_img is None or runtime is None:
-                step.update(status="inconclusive", cognitive_status="inconclusive", error="观察材料缺失")
+                step.update(status="inconclusive", cognitive_status="inconclusive", error=tr("观察材料缺失"))
                 self._checkpoint("raw_capture")
                 continue
             step["phases"]["visual"] = "started"
@@ -534,9 +547,9 @@ class AlienQAPipeline:
                 if step.get("expectation_generation", {}).get("coverage") == "partial":
                     if judgment.status == "passed":
                         step.update(status="inconclusive", cognitive_status="inconclusive",
-                                    error="已检查要求满足，但仍有采样要求未决，认知检查不完整")
+                                    error=tr("已检查要求满足，但仍有采样要求未决，认知检查不完整"))
                     elif judgment.status == "mismatch":
-                        step["error"] = "已检查要求存在落差，另有采样要求未决，认知检查不完整"
+                        step["error"] = tr("已检查要求存在落差，另有采样要求未决，认知检查不完整")
                 step["phases"]["judgment"] = judgment.status
                 evs = self._evidence.build(judgment.mismatches, observation, action, state, driver,
                                            before_state=before_state, run_id=result.run_id,

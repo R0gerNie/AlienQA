@@ -1,4 +1,5 @@
 """Run-local request ledger. Unknown usage/cost is never converted to zero."""
+from ..i18n import normalize_language, t
 from collections import Counter
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -66,9 +67,12 @@ class MeteringSink:
         self.directory = Path(directory)
         self.run_id = run_id
         self.lock = threading.RLock()
+        self.language = None
 
     def initialize(self, config):
+        self.language = normalize_language(config.language)
         payload = {"schema_version": VERSION, "run_id": self.run_id,
+                   "language": self.language,
                    "default_provider": config.default_provider, "request_timeout": config.request_timeout,
                    "roles": {role: {"model": rc.model, "temperature": rc.temperature,
                              "fallbacks": list(rc.fallbacks), "max_tokens": rc.max_tokens} for role, rc in config.roles.items()}}
@@ -171,7 +175,7 @@ class MeteringSink:
 
     def write_summary(self):
         with self.lock:
-            summary = load_summary(self.directory, self.run_id)
+            summary = load_summary(self.directory, self.run_id, language=self.language)
             atomic_write_json(self.directory / "usage-summary.json", summary)
         return summary
 
@@ -219,10 +223,10 @@ def _aggregate(rows):
             "unknown_duration_attempts": sum(v is None for v in elapsed)}
 
 
-def load_summary(directory, run_id):
+def load_summary(directory, run_id, *, language=None):
     directory = Path(directory)
     base = {"schema_version": VERSION, "run_id": run_id, "hard_cost_limit": False,
-            "notice": "仅有动作/时间预算；费用缺失与未完成请求为未知，停止本地任务不保证供应商停止计费。"}
+            "notice": t("仅有动作/时间预算；费用缺失与未完成请求为未知，停止本地任务不保证供应商停止计费。", language=language)}
     try:
         rows = MeteringSink(directory, run_id).read_calls()
         config_path = directory / "llm" / "config.json"
@@ -244,7 +248,7 @@ def load_summary(directory, run_id):
                             for r in rows if any(a["model"] == model for a in r["attempts"])])
                             for model in sorted({a["model"] for r in rows for a in r["attempts"]})}
         if result["attempt_units"].get("cli_invocation"):
-            result["notice"] += " Codex attempts 计数为 CLI 启动次数，未直接观察供应商 HTTP 请求；订阅额度消耗不等于零费用。"
+            result["notice"] += t(" Codex attempts 计数为 CLI 启动次数，未直接观察供应商 HTTP 请求；订阅额度消耗不等于零费用。", language=language)
         return result
     except (OSError, TypeError, ValueError, KeyError) as exc:
         return {**base, "data_status": "corrupt", "complete": False, "error": public_text(exc)}

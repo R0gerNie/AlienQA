@@ -1,4 +1,5 @@
 """ProjectLoader：L0 来源适配 + 编排 L1/L2/L3 的加载流程。"""
+from ..i18n import t
 import re
 from pathlib import Path
 
@@ -39,7 +40,7 @@ class ProjectLoader:
         if app_manifest is not None:
             candidate = (root / str(app_manifest)).resolve()
             if not candidate.is_relative_to(root) or not candidate.is_file() or candidate.name != 'package.json':
-                raise ValueError('应用 manifest 必须是项目内部存在的 package.json')
+                raise ValueError(t('应用 manifest 必须是项目内部存在的 package.json'))
             chosen = next((app for app in ranked if app[1] == candidate), None)
             if chosen is None:
                 # An explicit existing file is bounded input even beyond discovery depth.
@@ -48,7 +49,7 @@ class ProjectLoader:
                     ranked = rank_frontend_apps(root, [*ranked, *explicit_apps])
                     chosen = explicit_apps[0]
             if chosen is None:
-                raise ValueError('所选 manifest 未被识别为前端应用')
+                raise ValueError(t('所选 manifest 未被识别为前端应用'))
             framework, manifest, _ = chosen
         app_dir = manifest.parent if manifest else root
         start, build = extract_commands(manifest)
@@ -116,7 +117,7 @@ class ProjectLoader:
                 return "zip"
             if s.startswith(("http://", "https://")):
                 return "url"
-        raise NotImplementedError("L0 目前仅支持本地目录/zip/url 识别，docker/CI 待实现")
+        raise NotImplementedError(t("L0 目前仅支持本地目录/zip/url 识别，docker/CI 待实现"))
 
     def detect_framework(self, project_root: Path):
         framework, _ = detect_framework(Path(project_root))
@@ -140,12 +141,12 @@ class ProjectLoader:
     def _resolve(self, source) -> Path:
         p = Path(source)
         if not p.exists():
-            raise FileNotFoundError(f"输入不存在: {source}")
+            raise FileNotFoundError(t("输入不存在: {source}", source=source))
         if p.is_dir():
             return p.resolve()
         if p.is_file() and p.suffix.lower() == ".zip":
             return self._extract_zip(p)
-        raise NotImplementedError("L0 目前仅支持目录/zip 输入，docker/url/CI 待实现")
+        raise NotImplementedError(t("L0 目前仅支持目录/zip 输入，docker/url/CI 待实现"))
 
     def _extract_zip(self, zip_path: Path) -> Path:
         import tempfile

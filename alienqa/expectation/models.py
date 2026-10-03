@@ -1,4 +1,6 @@
 """Expectation Engine 数据模型与最小 Observation 契约。"""
+from alienqa.i18n import t as tr
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Literal
@@ -89,16 +91,16 @@ def parse_judgment(text: str) -> JudgmentResult:
     """严格验证盲判 JSON；省略 status 的旧响应仍须显式提供 mismatches。"""
     data = loads_object(text)
     if "mismatches" not in data or not isinstance(data["mismatches"], list):
-        raise ValueError("判定输出必须包含 mismatches 列表")
+        raise ValueError(tr("判定输出必须包含 mismatches 列表"))
     mismatches = []
     for item in data["mismatches"]:
         if not isinstance(item, dict):
-            raise ValueError("mismatches 的每项必须为对象")
+            raise ValueError(tr("mismatches 的每项必须为对象"))
         for key in ("expectation", "observation", "level", "reasoning"):
             if not isinstance(item.get(key), str) or not item[key].strip():
-                raise ValueError(f"mismatch.{key} 必须为非空字符串")
+                raise ValueError(tr("mismatch.{key} 必须为非空字符串", key=key))
         if item["level"].strip() not in _LEVEL_MAP:
-            raise ValueError("mismatch.level 必须为 high、medium 或 low")
+            raise ValueError(tr("mismatch.level 必须为 high、medium 或 low"))
         mismatches.append(ExpectationMismatch.from_dict(item))
 
     inferred_status = "mismatch" if mismatches else "passed"
@@ -106,24 +108,24 @@ def parse_judgment(text: str) -> JudgmentResult:
     unverifiable = data.get("unverifiable_expectation_ids", [])
     if (not isinstance(unverifiable, list) or any(not isinstance(i, str) or not i.strip() for i in unverifiable)
             or len(set(unverifiable)) != len(unverifiable)):
-        raise ValueError("unverifiable_expectation_ids 必须是无重复的预期 ID 数组")
+        raise ValueError(tr("unverifiable_expectation_ids 必须是无重复的预期 ID 数组"))
     if status not in ("passed", "mismatch", "failed", "inconclusive"):
-        raise ValueError("判定 status 无效")
+        raise ValueError(tr("判定 status 无效"))
     if status in ("passed", "mismatch"):
         if status != inferred_status:
-            raise ValueError("判定 status 与 mismatches 不一致")
+            raise ValueError(tr("判定 status 与 mismatches 不一致"))
         if status == "passed" and unverifiable:
-            raise ValueError("存在无法判断的预期不能 passed")
+            raise ValueError(tr("存在无法判断的预期不能 passed"))
         error = data.get("error", "")
         if unverifiable and (not isinstance(error, str) or not error.strip()):
-            raise ValueError("无法判断的预期必须提供 error 原因")
+            raise ValueError(tr("无法判断的预期必须提供 error 原因"))
         return JudgmentResult(status=status, mismatches=mismatches,
                               error=error if unverifiable else "", unverifiable_expectation_ids=unverifiable)
     if mismatches:
-        raise ValueError("failed/inconclusive 不能同时包含 mismatch")
+        raise ValueError(tr("failed/inconclusive 不能同时包含 mismatch"))
     error = data.get("error")
     if not isinstance(error, str) or not error.strip():
-        raise ValueError("failed/inconclusive 必须提供非空 error 原因")
+        raise ValueError(tr("failed/inconclusive 必须提供非空 error 原因"))
     return JudgmentResult(status=status, error=error.strip(), unverifiable_expectation_ids=unverifiable)
 
 

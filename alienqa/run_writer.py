@@ -6,6 +6,7 @@ import uuid
 
 from .persistence import atomic_write_json
 from .cognitive_diagnostics import step_incomplete
+from .i18n import normalize_language
 
 SCHEMA_VERSION = 2
 
@@ -116,7 +117,8 @@ class RunWriter:
 
     def checkpoint(self, *, phase: str, steps: list, evidences: list, diagnostics: list,
                    raw_refs: list | None = None, investigations: list | None = None,
-                   stop_reason: str = "", scope=None, issues: list | None = None, access_result: dict | None = None) -> dict:
+                   stop_reason: str = "", scope=None, issues: list | None = None, access_result: dict | None = None,
+                   language: str = 'zh') -> dict:
         def document(value):
             return value.to_dict() if hasattr(value, "to_dict") else value
 
@@ -127,6 +129,7 @@ class RunWriter:
                             "investigations": [document(i) for i in investigations or []],
                             "diagnostics": diagnostics, "raw_refs": raw_refs or [],
                             "scope": scope, "stop_reason": stop_reason, "access_result": access_result,
+                            "language": normalize_language(language),
                             "issues": [document(i) for i in issues or []],
                             "incomplete": phase != "terminal" or bool(diagnostics) or
                             any(step_incomplete(s) for s in steps)})
@@ -146,7 +149,8 @@ class RunWriter:
         self.last_stage = payload["last_stage"]
         return payload
 
-    def append_terminal_diagnostic(self, status: str, error: str, component: str = "job") -> dict:
+    def append_terminal_diagnostic(self, status: str, error: str, component: str = "job",
+                                   *, language: str = 'zh') -> dict:
         saved = load_snapshot(self.directory) or {"steps": [], "evidences": [], "diagnostics": [],
                                                   "raw_refs": [], "investigations": [], "issues": []}
         for step in saved["steps"]:
@@ -166,4 +170,5 @@ class RunWriter:
         return self.checkpoint(phase="terminal", steps=saved["steps"], evidences=saved["evidences"],
                                diagnostics=saved["diagnostics"], raw_refs=saved["raw_refs"],
                                investigations=saved["investigations"], issues=saved["issues"],
-                               scope=saved.get("scope"), stop_reason=status, access_result=saved.get("access_result"))
+                               scope=saved.get("scope"), stop_reason=status, access_result=saved.get("access_result"),
+                               language=saved.get("language", language))

@@ -1,21 +1,21 @@
 {% extends "base.html" %}
 {% block body %}
-<h1>历史项目</h1>
-<p class="muted">每次扫描在磁盘上对应一个目录（<code>runs/</code>）。</p>
+<h1>{{ _('历史项目') }}</h1>
+<p class="muted">{{ _('每次扫描在磁盘上对应一个目录（') }}<code>runs/</code>{{ _('）。') }}</p>
 <table>
-  <tr><th>扫描目录</th><th>项目路径</th><th>测试单元</th><th>状态</th><th>证据</th><th>Issue</th><th></th></tr>
+  <tr><th>{{ _('扫描目录') }}</th><th>{{ _('项目路径') }}</th><th>{{ _('测试单元') }}</th><th>{{ _('状态') }}</th><th>{{ _('证据') }}</th><th>Issue</th><th></th></tr>
   {% for r in runs %}
   <tr>
     <td><code>{{ r.id }}</code></td>
     <td>{{ r.project_path or '—' }}</td>
     <td>{{ r.unit or '—' }}</td>
-    <td><span class="badge {{ r.status }}">{{ r.status }}</span> <span class="muted">{{ r.progress.data_status }} · {{ r.progress.phase or "未记录阶段" }}</span></td>
-    <td>{{ r.progress.evidence_count if r.progress.evidence_count is defined else "未记录" }}</td>
-    <td>{{ r.progress.issue_count if r.progress.issue_count is defined else "未记录" }}</td>
-    <td><a href="/runs/{{ r.id }}">打开</a></td>
+    <td><span class="badge {{ r.status }}">{{ status_labels.get(r.status, r.status) }}</span> <span class="muted">{{ status_labels.get(r.progress.data_status, r.progress.data_status) }} · {{ phase_labels.get(r.progress.phase, r.progress.phase) or _('未记录阶段') }}</span></td>
+    <td>{{ r.progress.evidence_count if r.progress.evidence_count is defined else _('未记录') }}</td>
+    <td>{{ r.progress.issue_count if r.progress.issue_count is defined else _('未记录') }}</td>
+    <td><a href="/runs/{{ r.id }}">{{ _('打开') }}</a></td>
   </tr>
   {% else %}
-  <tr><td colspan="7" class="muted">暂无历史扫描</td></tr>
+  <tr><td colspan="7" class="muted">{{ _('暂无历史扫描') }}</td></tr>
   {% endfor %}
 </table>
 {% endblock %}

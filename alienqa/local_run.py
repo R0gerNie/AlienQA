@@ -8,6 +8,8 @@ from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
+from .i18n import get_language, normalize_language, t
+
 
 def valid_url(value: str) -> bool:
     try:
@@ -25,30 +27,30 @@ def validate_session(filename: str) -> None:
     try:
         state = json.loads(Path(filename).read_text(encoding='utf-8'))
         if not isinstance(state, dict) or not all(isinstance(state.get(key, []), list) for key in ('cookies', 'origins')):
-            raise ValueError('需要 cookies/origins 列表')
+            raise ValueError(t('需要 cookies/origins 列表'))
         for cookie in state.get('cookies', []):
             if not isinstance(cookie, dict) or not all(isinstance(cookie.get(k), str) for k in ('name', 'value')):
-                raise ValueError('cookie 缺少字符串 name/value')
+                raise ValueError(t('cookie 缺少字符串 name/value'))
             if not (valid_url(cookie.get('url', '')) or
                     (isinstance(cookie.get('domain'), str) and cookie['domain'] and isinstance(cookie.get('path'), str))):
-                raise ValueError('cookie 需要有效 url 或 domain/path')
+                raise ValueError(t('cookie 需要有效 url 或 domain/path'))
             for key in ('httpOnly', 'secure'):
                 if key in cookie and type(cookie[key]) is not bool:
-                    raise ValueError(f'cookie {key} 需要布尔值')
+                    raise ValueError(t('cookie {key} 需要布尔值', key=key))
             if 'expires' in cookie and (type(cookie['expires']) not in (int, float) or not math.isfinite(cookie['expires'])):
-                raise ValueError('cookie expires 需要有限数值')
+                raise ValueError(t('cookie expires 需要有限数值'))
             if 'sameSite' in cookie and cookie['sameSite'] not in ('Strict', 'Lax', 'None'):
-                raise ValueError('cookie sameSite 无效')
+                raise ValueError(t('cookie sameSite 无效'))
         for origin in state.get('origins', []):
             if not isinstance(origin, dict) or not valid_url(origin.get('origin', '')) or not isinstance(origin.get('localStorage', []), list):
-                raise ValueError('origin/localStorage 结构无效')
+                raise ValueError(t('origin/localStorage 结构无效'))
             for row in origin.get('localStorage', []):
                 if not isinstance(row, dict) or not all(isinstance(row.get(k), str) for k in ('name', 'value')):
-                    raise ValueError('localStorage 需要字符串 name/value')
+                    raise ValueError(t('localStorage 需要字符串 name/value'))
     except (OSError, ValueError, UnicodeError) as exc:
         # JSON decoder excerpts and cookie contents can include private values.
-        reason = str(exc) if isinstance(exc, ValueError) and not isinstance(exc, json.JSONDecodeError) else '文件缺失、不可读取或 JSON 无效'
-        raise ValueError(f'登录态文件无法读取：{reason}') from None
+        reason = str(exc) if isinstance(exc, ValueError) and not isinstance(exc, json.JSONDecodeError) else t('文件缺失、不可读取或 JSON 无效')
+        raise ValueError(t('登录态文件无法读取：{reason}', reason=reason)) from None
 
 
 @dataclass(frozen=True)
@@ -68,40 +70,42 @@ class ScanInput:
     static_entry: str = ''
     base_path: str = '/'
     spa_fallback: bool = False
+    language: str = 'zh'
 
     @classmethod
     def from_dict(cls, data: dict):
         strings = ('mode', 'project_path', 'url', 'base_url', 'storage_state', 'unit', 'instructions', 'app_path', 'browser', 'static_entry', 'base_path')
         if any(data.get(k) is not None and not isinstance(data[k], str) for k in strings):
-            raise ValueError('扫描参数必须是字符串')
+            raise ValueError(t('扫描参数必须是字符串'))
         values = {k: (data.get(k) or '').strip() for k in strings}
         values['base_url'] = values.pop('url') or values['base_url']
         values['mode'] = values['mode'] or ('browser' if values['base_url'] and not values['project_path'] else 'source')
         values['browser'] = values['browser'] or 'chrome'
         if values['mode'] not in ('browser', 'source'):
-            raise ValueError('扫描模式只允许 source/browser')
+            raise ValueError(t('扫描模式只允许 source/browser'))
         if values['browser'] not in ('chrome', 'chromium'):
-            raise ValueError('浏览器只允许 chrome/chromium')
+            raise ValueError(t('浏览器只允许 chrome/chromium'))
         if values['mode'] == 'source' and (not values['project_path'] or not Path(values['project_path']).is_dir()):
-            raise ValueError('缺少项目路径或目录不存在')
+            raise ValueError(t('缺少项目路径或目录不存在'))
         if (values['mode'] == 'browser' or values['base_url']) and not valid_url(values['base_url']):
-            raise ValueError('需要有效的 HTTP/HTTPS URL（不含账号密码）')
+            raise ValueError(t('需要有效的 HTTP/HTTPS URL（不含账号密码）'))
         if values['mode'] == 'browser' and values['app_path']:
-            raise ValueError('应用选择需要源码目录')
+            raise ValueError(t('应用选择需要源码目录'))
         for key, default in (('samples', 2), ('max_actions', 10), ('max_seconds', 300), ('startup_timeout', 30)):
             number = data.get(key, default)
             if type(number) not in (int, float) or not math.isfinite(number) or number <= 0:
-                raise ValueError('动作数、采样次数及时间预算必须是有限正数')
+                raise ValueError(t('动作数、采样次数及时间预算必须是有限正数'))
             if key in ('samples', 'max_actions') and type(number) is not int:
-                raise ValueError('动作数和采样次数必须为正整数')
+                raise ValueError(t('动作数和采样次数必须为正整数'))
             values[key] = number
         from .static_server import normalize_base_path
         values['base_path'] = normalize_base_path(values['base_path'] or '/')
         values['spa_fallback'] = data.get('spa_fallback', False)
         if type(values['spa_fallback']) is not bool:
-            raise ValueError('history 回退必须是布尔值')
+            raise ValueError(t('history 回退必须是布尔值'))
         if (values['mode'] == 'browser' or values['base_url']) and (values['spa_fallback'] or values['base_path'] != '/' or values['static_entry']):
-            raise ValueError('静态页面、部署前缀和 history 回退仅适用于本机静态服务；实际 URL 已包含部署条件')
+            raise ValueError(t('静态页面、部署前缀和 history 回退仅适用于本机静态服务；实际 URL 已包含部署条件'))
+        values['language'] = normalize_language(data.get('language', get_language()))
         validate_session(values['storage_state'])
         return cls(**values)
 
@@ -115,15 +119,15 @@ def select_project(loader, directory: str, app_path: str = ''):
     if app_path:
         selected = (root / app_path).resolve()
         if not selected.is_relative_to(root) or not selected.is_dir():
-            raise ValueError('应用路径必须是项目内部的目录')
+            raise ValueError(t('应用路径必须是项目内部的目录'))
         if (selected / "package.json").is_file():
             return loader.load(directory, app_manifest=(selected / "package.json").relative_to(root).as_posix())
         if project.frontend_apps:
-            raise ValueError("所选应用目录缺少 package.json")
+            raise ValueError(t("所选应用目录缺少 package.json"))
         return loader.load(str(selected))
     if len(project.frontend_apps) > 1:
         choices = ', '.join(app.base_dir or '.' for app in project.frontend_apps)
-        raise ValueError(f'检测到多个前端应用，请显式选择应用目录：{choices}')
+        raise ValueError(t('检测到多个前端应用，请显式选择应用目录：{choices}', choices=choices))
     return project
 
 
@@ -134,11 +138,11 @@ def static_directory(project, base_path='/') -> Path:
 
 def validate_config(config) -> None:
     if not math.isfinite(config.request_timeout) or config.request_timeout <= 0:
-        raise ValueError('模型请求超时必须是有限正数')
+        raise ValueError(t('模型请求超时必须是有限正数'))
     missing = [role for role in ('gist', 'expectation', 'visual', 'judge')
                if not config.role(role) or not isinstance(config.role(role).model, str) or not config.role(role).model.strip()]
     if missing:
-        raise ValueError('扫描模型配置缺少：' + ', '.join(missing))
+        raise ValueError(t('扫描模型配置缺少：{roles}', roles=', '.join(missing)))
 
 
 def check_output(directory) -> None:
@@ -156,7 +160,7 @@ def check_url(url: str, timeout: float = 3) -> str:
         # HTTP error pages are reachable targets and may contain QA evidence.
         return response.geturl()
     except OSError as exc:
-        raise ValueError(f'运行 URL 不可达：{type(exc).__name__}') from None
+        raise ValueError(t('运行 URL 不可达：{error}', error=type(exc).__name__)) from None
 
 
 def check_browser(browser: str) -> None:
@@ -172,7 +176,7 @@ def check_browser(browser: str) -> None:
                      'win32': str(Path(os.environ.get('PROGRAMFILES', 'C:/Program Files')) / 'Google/Chrome/Application/chrome.exe')}
             installed = Path(paths.get(sys.platform, '/opt/google/chrome/chrome')).is_file() or bool(shutil.which('google-chrome'))
         if not installed:
-            raise ValueError('本地浏览器未安装；请安装所选 Chrome 或 Playwright Chromium')
+            raise ValueError(t('本地浏览器未安装；请安装所选 Chrome 或 Playwright Chromium'))
 
 
 def source_context(project):

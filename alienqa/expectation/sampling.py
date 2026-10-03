@@ -26,9 +26,12 @@ class FeedbackClaim:
 def recognize_feedback(text, action_desc):
     """Consume a complete supported sentence in the frozen action's scope."""
     kind, _, label = action_desc.partition(" ")
-    if not label or label == "当前控件":
+    if not label or label in {"当前控件", "current control", "Unlabeled control"}:
         return None
     value = normalize_layout(text)
+    english = _recognize_english(value, kind, label)
+    if english is not None:
+        return english
     label = re.escape(normalize_layout(label))
     target = rf'(?:[「“\"]?{label}[」”\"]?)'
     # Finite, whole-sentence input conventions observed in the real baseline.
@@ -82,6 +85,48 @@ def recognize_feedback(text, action_desc):
     unrestricted = r"(?:不限定(?:具体)?(?:反馈)?形式|(?:反馈)?形式不限)"
     suffix = rf"(?:[,;](?:{purpose}|{completed}|{explanation}|{example_list}|{unrestricted}))*"
     if re.fullmatch(prefix + positive + suffix + r"\.?", value):
+        return FeedbackClaim("presence", True, "operation_feedback.visible_result")
+    return None
+
+
+def _recognize_english(value, kind, label):
+    """Finite English counterparts, preserving target, negation and modifiers."""
+    target = rf'(?:[「“"]?{re.escape(normalize_layout(label))}[」”"]?)'
+    if kind == "type":
+        if re.fullmatch(rf"After typing text into {target}, the input should visibly display the entered content\.?", value):
+            return FeedbackClaim("input_value", True, "input_value.visible_content")
+        return None
+    if kind == "blur":
+        if re.fullmatch(rf"{target} should lose (?:input )?focus and no longer show an (?:active )?text cursor\.?", value):
+            return FeedbackClaim("input_focus", True, "input_focus.blur_cursor")
+        return None
+    if kind != "click":
+        return None
+    prefix = rf"(?:[Aa]fter (?:clicking|pressing) (?:the button )?{target}|[Aa]fter this operation|[Aa]fter the operation|[Aa]fter clicking),? "
+    result = r"(?:(?:visible |observable |clear )?(?:result feedback|operation result feedback|operation feedback|feedback)|(?:visible|observable) result)"
+    subject = r"(?:(?:the page|the interface) )?"
+    negative = rf"(?:{result} should not be (?:provided|shown|displayed)|{subject}should not (?:provide|show|display|present) {result})"
+    if re.fullmatch(prefix + negative + r"\.?", value):
+        return FeedbackClaim("presence", False, "operation_feedback.absent")
+    if re.fullmatch(prefix + subject + r"(?:operation result )?feedback should be (?:clearly readable|clear and readable)\.?", value):
+        return FeedbackClaim("readability", True, "operation_feedback.readable")
+    positive = rf"(?:{result} should be (?:provided|shown|displayed)|there should be {result})"
+    active = rf"{subject}should (?:provide|show|display|present) {result}"
+    # Exact clauses are optional counterparts of the supported Chinese clauses.
+    # Save-specific wording is available only for a Save control.
+    save = normalize_layout(label).casefold() in {"保存", "保存下一项", "save", "save next", "save next item"}
+    operation = r"(?:operation|save)" if save else r"operation"
+    purpose = rf"(?:so (?:I|the user) can (?:tell|determine) whether (?:this |the )?{operation} (?:succeeded|completed)(?: or why it could not be completed)?)"
+    explanation = r"to explain the result of this operation"
+    if save:
+        explanation = rf"(?:{explanation}|to explain the save result or why saving is currently unavailable)"
+    example = r"(?:a result explanation|a button state change|navigation feedback"
+    if save:
+        example += r"|a save result|a save status update|an explanation of why saving is unavailable"
+    example += r")"
+    examples = rf"for example, {example}(?:(?:, | or ){example})*"
+    suffix = rf"(?:[,;] (?:{purpose}|{explanation}|{examples}|without restricting the feedback format))*"
+    if re.fullmatch(prefix + rf"(?:{positive}|{active})" + suffix + r"\.?", value):
         return FeedbackClaim("presence", True, "operation_feedback.visible_result")
     return None
 

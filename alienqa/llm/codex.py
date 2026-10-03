@@ -3,6 +3,7 @@
 Each completion is a fresh, ephemeral, tool-disabled CLI turn. We do not read,
 copy or export auth tokens. A CLI invocation is not an observed HTTP request.
 """
+from ..i18n import language_context, normalize_language, t
 import base64
 import json
 import os
@@ -31,23 +32,24 @@ def child_env():
 
 class CodexProvider:
     def __init__(self, config):
+        self.language = normalize_language(config.language)
         self.executable = shutil.which(config.codex_executable)
         if not self.executable:
-            raise RuntimeError("未安装 Codex CLI；请安装并运行 codex login")
+            raise RuntimeError(t("未安装 Codex CLI；请安装并运行 codex login", language=self.language))
         self.effort = config.codex_reasoning_effort
         if self.effort not in {"minimal", "low", "medium", "high", "xhigh"}:
-            raise ValueError("Codex reasoning_effort 必须是 minimal/low/medium/high/xhigh")
+            raise ValueError(t("Codex reasoning_effort 必须是 minimal/low/medium/high/xhigh", language=self.language))
         status = subprocess.run([self.executable, "login", "status"], capture_output=True, text=True,
                                 env=child_env(), timeout=10)
         # Do not silently use a billable API-key login as a subscription fallback.
         if status.returncode or "logged in using chatgpt" not in (status.stdout + status.stderr).lower():
-            raise RuntimeError("Codex 需要 ChatGPT 登录；请先运行 codex login，不自动改用 API key")
+            raise RuntimeError(t("Codex 需要 ChatGPT 登录；请先运行 codex login，不自动改用 API key", language=self.language))
 
     def completion(self, *, model, messages, timeout, **unused):
         model_name = model.removeprefix("codex/")
         if not model_name or model_name.startswith("-"):
-            raise ValueError("缺少有效 Codex 模型名")
-        with tempfile.TemporaryDirectory(prefix="alienqa-codex-") as directory:
+            raise ValueError(t("缺少有效 Codex 模型名", language=self.language))
+        with tempfile.TemporaryDirectory(prefix="alienqa-codex-") as directory, language_context(self.language):
             directory = Path(directory)
             instructions = directory / "instructions.txt"
             instructions.write_text(INSTRUCTIONS, encoding="utf-8")
@@ -88,10 +90,10 @@ class CodexProvider:
             except BaseException as exc:
                 _kill(process)
                 if isinstance(exc, subprocess.TimeoutExpired):
-                    raise TimeoutError("Codex 调用超时；本地进程已回收，供应商是否完成及费用未知") from exc
+                    raise TimeoutError(t("Codex 调用超时；本地进程已回收，供应商是否完成及费用未知")) from exc
                 raise
             if process.returncode:
-                raise RuntimeError(f"Codex CLI 失败（exit={process.returncode}）：{public_text(stderr)}")
+                raise RuntimeError(t("Codex CLI 失败（exit={code}）：{error}", code=process.returncode, error=public_text(stderr)))
             text, usage = _result(stdout)
             return {"choices": [{"message": {"content": text}}], "usage": usage}
 
@@ -117,20 +119,20 @@ def _messages(messages, directory):
             parts.append(content)
             continue
         if not isinstance(content, list):
-            raise ValueError("Codex 仅支持文本和内联图像消息")
+            raise ValueError(t("Codex 仅支持文本和内联图像消息"))
         for item in content:
             if item.get("type") == "text":
                 parts.append(item["text"])
             elif item.get("type") == "image_url":
                 url = item["image_url"]["url"]
                 if not url.startswith("data:image/") or ";base64," not in url:
-                    raise ValueError("Codex 图像必须由本地图片编码，不下载外部图像 URL")
+                    raise ValueError(t("Codex 图像必须由本地图片编码，不下载外部图像 URL"))
                 path = directory / f"image-{len(images)+1}.png"
                 path.write_bytes(base64.b64decode(url.split(",", 1)[1], validate=True))
                 images.append(path)
                 parts.append(f"[Image {len(images)} attached]")
             else:
-                raise ValueError("Codex 消息包含不支持的内容类型")
+                raise ValueError(t("Codex 消息包含不支持的内容类型"))
     return '\n\n'.join(parts), images
 
 
@@ -141,27 +143,27 @@ def _result(stdout):
         try:
             event = json.loads(line)
         except ValueError as exc:
-            raise RuntimeError("Codex 返回非 JSONL 事件") from exc
+            raise RuntimeError(t("Codex 返回非 JSONL 事件")) from exc
         if not isinstance(event, dict):
-            raise RuntimeError("Codex 返回无效事件")
+            raise RuntimeError(t("Codex 返回无效事件"))
         event_type = event.get("type")
         if event_type == "turn.started":
             if started:
-                raise RuntimeError("Codex 返回多个推理 turn，无法作为单次调用计量")
+                raise RuntimeError(t("Codex 返回多个推理 turn，无法作为单次调用计量"))
             started = True
         if event_type in {"error", "turn.failed"}:
-            error = event.get("error", event.get("message", "未知错误"))
-            raise RuntimeError(f"Codex 调用失败：{public_text(error)}")
+            error = event.get("error", event.get("message", t("未知错误")))
+            raise RuntimeError(t("Codex 调用失败：{error}", error=public_text(error)))
         if event_type in {"item.started", "item.completed", "item.updated"}:
             item = event.get("item") or {}
             if item.get("type") == "error":
                 message = public_text(item.get("message", "Codex startup warning"))
                 if started:
-                    raise RuntimeError(f"Codex 推理错误：{message}")
+                    raise RuntimeError(t("Codex 推理错误：{error}", error=message))
                 warnings.append(message)
                 continue
             if item.get("type") not in {"agent_message", "reasoning"}:
-                raise RuntimeError(f"Codex 返回未允许的 item 类型 {public_text(item.get('type'))}；当前适配仅允许直接文本/图像推理")
+                raise RuntimeError(t("Codex 返回未允许的 item 类型 {type}；当前适配仅允许直接文本/图像推理", type=public_text(item.get("type"))))
             if event_type == "item.completed" and item.get("type") == "agent_message":
                 text = item.get("text")
         if event_type == "turn.completed":
@@ -174,7 +176,7 @@ def _result(stdout):
                     if type(value) is int and value >= 0:
                         usage[target] = value
     if not completed or not isinstance(text, str) or not text.strip():
-        raise RuntimeError("Codex 缺少完成事件或有效最终回复")
+        raise RuntimeError(t("Codex 缺少完成事件或有效最终回复"))
     if warnings:
         usage = {**(usage or {}), "codex_startup_warnings": warnings}
     return text, usage

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "alienqa"
 version = "0.1.0"
-description = "AlienQA：模拟首次使用产品的外部用户，发现认知落差与技术异常，提供可回放证据和离线报告"
+description = "AlienQA simulates a first-time external user to find expectation gaps and technical failures with replayable evidence and offline reports"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
